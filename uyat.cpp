@@ -247,15 +247,36 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
     }
     break;
   case UyatCommandType::WIFI_RESET:
-    ESP_LOGE(TAG, "WIFI_RESET");
-    this->wifi_status_ = -1;
-    this->send_empty_command_(UyatCommandType::WIFI_RESET);
-    break;
-  case UyatCommandType::WIFI_SELECT:
-    ESP_LOGE(TAG, "WIFI_SELECT");
-    this->wifi_status_ = -1;
-    this->send_empty_command_(UyatCommandType::WIFI_SELECT);
-    break;
+  case UyatCommandType::WIFI_SELECT: {
+      const bool is_select = (len >= 1);
+      // Send WIFI_SELECT ACK
+      UyatCommand ack;
+      ack.cmd = is_select ? UyatCommandType::WIFI_SELECT : UyatCommandType::WIFI_RESET;
+      ack.payload.clear();
+      this->send_command_(ack);
+      // Establish pairing mode for correct first WIFI_STATE byte, EZ (0x00) default
+      uint8_t first = 0x00;
+      const char *mode_str = "EZ";
+      if (is_select && buffer[0] == 0x01) {
+        first = 0x01;
+        mode_str = "AP";
+      }
+      // Send WIFI_STATE response, MCU exits pairing mode
+      UyatCommand st;
+      st.cmd = UyatCommandType::WIFI_STATE;
+      st.payload.resize(1);
+      st.payload[0] = first;
+      this->send_command_(st);
+      st.payload[0] = 0x02;
+      this->send_command_(st);
+      st.payload[0] = 0x03;
+      this->send_command_(st);
+      st.payload[0] = 0x04;
+      this->send_command_(st);
+      ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
+               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
+      break;
+    }
   case UyatCommandType::DATAPOINT_DELIVER:
     break;
   case UyatCommandType::DATAPOINT_REPORT_ASYNC:

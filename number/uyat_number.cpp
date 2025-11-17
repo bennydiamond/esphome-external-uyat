@@ -7,10 +7,8 @@ namespace uyat {
 static const char *const TAG = "uyat.number";
 
 void UyatNumber::setup() {
-
-  if (this->restore_value_)
-  {
-    this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+  if (this->restore_value_) {
+    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
   }
 
   this->parent_->register_listener(this->number_id_, [this](const UyatDatapoint &datapoint) {
@@ -26,13 +24,11 @@ void UyatNumber::setup() {
       this->publish_state(value);
       if (this->restore_value_)
         this->pref_.save(&value);
-    }
-    else
-    {
+    } else {
       ESP_LOGW(TAG, "Reported type (%d) is not a number!", static_cast<int>(datapoint.type));
       return;
     }
-    
+
     if ((this->type_) && (this->type_ != datapoint.type)) {
       ESP_LOGW(TAG, "Reported type (%d) different than previously set (%d)!", static_cast<int>(datapoint.type),
                static_cast<int>(*this->type_));
@@ -41,22 +37,19 @@ void UyatNumber::setup() {
   });
 
   this->parent_->add_on_initialized_callback([this] {
-    if (this->type_)
-    {
+    if (this->type_) {
       float value;
       if (!this->restore_value_) {
-        value = *this->initial_value_;
-      }
-      else
-      {
-        if (!this->pref_.load(&value))
-        {
-          if (this->initial_value_)
-          {
+        if (this->initial_value_) {
+          value = *this->initial_value_;
+        } else {
+          return;
+        }
+      } else {
+        if (!this->pref_.load(&value)) {
+          if (this->initial_value_) {
             value = *this->initial_value_;
-          }
-          else
-          {
+          } else {
             value = this->traits.get_min_value();
             ESP_LOGW(TAG, "Failed to restore and there is no initial value defined. Setting min_value (%f)", value);
           }

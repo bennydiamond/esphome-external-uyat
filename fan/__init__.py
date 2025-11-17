@@ -1,8 +1,9 @@
+import esphome.codegen as cg
 from esphome.components import fan
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_OUTPUT_ID, CONF_SPEED_COUNT, CONF_SWITCH_DATAPOINT
-from .. import uyat_ns, CONF_UYAT_ID, Uyat
+from esphome.const import CONF_ID, CONF_SPEED_COUNT, CONF_SWITCH_DATAPOINT
+
+from .. import CONF_UYAT_ID, Uyat, uyat_ns
 
 DEPENDENCIES = ["uyat"]
 
@@ -13,9 +14,9 @@ CONF_DIRECTION_DATAPOINT = "direction_datapoint"
 UyatFan = uyat_ns.class_("UyatFan", cg.Component, fan.Fan)
 
 CONFIG_SCHEMA = cv.All(
-    fan.FAN_SCHEMA.extend(
+    fan.fan_schema(UyatFan)
+    .extend(
         {
-            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatFan),
             cv.GenerateID(CONF_UYAT_ID): cv.use_id(Uyat),
             cv.Optional(CONF_OSCILLATION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_DATAPOINT): cv.uint8_t,
@@ -23,7 +24,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
 )
 
@@ -31,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_UYAT_ID])
 
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], parent, config[CONF_SPEED_COUNT])
+    var = cg.new_Pvariable(config[CONF_ID], parent, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
 

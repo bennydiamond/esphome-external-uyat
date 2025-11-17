@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "../uyat.h"
+#include "esphome/components/uyat/uyat.h"
 #include "esphome/components/climate/climate.h"
 
 namespace esphome {
@@ -46,8 +46,7 @@ class UyatClimate : public climate::Climate, public Component {
   void set_target_temperature_multiplier(float temperature_multiplier) {
     this->target_temperature_multiplier_ = temperature_multiplier;
   }
-  void set_eco_id(uint8_t eco_id, UyatDatapointType type) { this->eco_id_ = eco_id; this->eco_id_type_ = type; }
-  void set_eco_mapping(const std::vector<std::pair<uint32_t, climate::ClimatePreset>>& mapping) { this->eco_mapping_ = mapping; };
+  void set_eco_id(uint8_t eco_id) { this->eco_id_ = eco_id; }
   void set_eco_temperature(float eco_temperature) { this->eco_temperature_ = eco_temperature; }
   void set_sleep_id(uint8_t sleep_id) { this->sleep_id_ = sleep_id; }
 
@@ -86,9 +85,6 @@ class UyatClimate : public climate::Climate, public Component {
   /// Switch the climate device to the given climate mode.
   void switch_to_action_(climate::ClimateAction action);
 
-  optional<uint32_t> getEcoDpValueForPreset(climate::ClimatePreset preset) const;
-  optional<climate::ClimatePreset> getPresetForEcoValue(uint32_t value) const;
-
   Uyat *parent_;
   bool supports_heat_;
   bool supports_cool_;
@@ -106,12 +102,9 @@ class UyatClimate : public climate::Climate, public Component {
   float target_temperature_multiplier_{1.0f};
   float hysteresis_{1.0f};
   optional<uint8_t> eco_id_{};
-  UyatDatapointType eco_id_type_{UyatDatapointType::BOOLEAN};
-  std::vector<std::pair<uint32_t, climate::ClimatePreset>> eco_mapping_ = {
-    {1, climate::CLIMATE_PRESET_ECO}
-  };
   optional<uint8_t> sleep_id_{};
   optional<float> eco_temperature_{};
+  UyatDatapointType eco_type_{};
   uint8_t active_state_;
   uint8_t fan_state_;
   optional<uint8_t> swing_vertical_id_{};
@@ -127,7 +120,7 @@ class UyatClimate : public climate::Climate, public Component {
   bool heating_state_{false};
   bool cooling_state_{false};
   float manual_temperature_;
-  uint32_t eco_value_;
+  bool eco_;
   bool sleep_;
   bool reports_fahrenheit_{false};
 };

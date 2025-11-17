@@ -86,7 +86,7 @@ void UyatFan::control(const fan::FanCall &call) {
   if (this->oscillation_id_.has_value() && call.get_oscillating().has_value()) {
     if (this->oscillation_type_ == UyatDatapointType::ENUM) {
       this->parent_->set_enum_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
-    } else if (this->speed_type_ == UyatDatapointType::BOOLEAN) {
+    } else if (this->oscillation_type_ == UyatDatapointType::BOOLEAN) {
       this->parent_->set_boolean_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
     }
   }
