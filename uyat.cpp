@@ -4,10 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include <span>
-#include <ranges>
-#include <sstream>
-#include <iomanip>
 
 namespace esphome::uyat {
 
@@ -21,18 +17,10 @@ static const uint8_t NET_STATUS_CLOUD_CONNECTED = 0x04;
 static const uint8_t FAKE_WIFI_RSSI = 100;
 static const uint64_t UART_MAX_POLL_TIME_MS = 50;
 
-std::string cmd_ids_to_string(const std::set<uint8_t>& data) {
-    std::stringstream ss;
-    ss << '[' << std::hex << std::setfill('0');
-
-    for (const auto &x: data)
-    {
-      ss << static_cast<int>(x) << ',';
-    }
-
-    ss << ']';
-
-    return ss.str();
+static void add_unique_to_vector(std::vector<uint8_t> &vec, const uint8_t value) {
+  if (std::find(vec.begin(), vec.end(), value) == vec.end()) {
+    vec.push_back(value);
+  }
 }
 
 void Uyat::setup() {
@@ -51,13 +39,13 @@ void Uyat::setup() {
   this->defer([this]{
     if (this->unknown_commands_text_sensor_)
     {
-      const auto cmd_ids = cmd_ids_to_string(this->unknown_commands_set_);
+      const auto cmd_ids = format_hex_pretty(this->unknown_commands_set_, ' ', false);
       this->unknown_commands_text_sensor_->publish_state(cmd_ids);
     }
 
     if (this->unknown_extended_commands_text_sensor_)
     {
-      const auto cmd_ids = cmd_ids_to_string(this->unknown_extended_commands_set_);
+      const auto cmd_ids = format_hex_pretty(this->unknown_extended_commands_set_, ' ', false);
       this->unknown_extended_commands_text_sensor_->publish_state(cmd_ids);
     }
 
@@ -487,10 +475,10 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
       break;
     }
     default:
-      this->unknown_extended_commands_set_.insert(subcommand);
+      add_unique_to_vector(this->unknown_extended_commands_set_, subcommand);
       if (this->unknown_extended_commands_text_sensor_)
       {
-        const auto cmd_ids = cmd_ids_to_string(this->unknown_extended_commands_set_);
+        const auto cmd_ids = format_hex_pretty(this->unknown_extended_commands_set_, ' ', false);
         this->unknown_extended_commands_text_sensor_->publish_state(cmd_ids);
       }
       ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received",
@@ -499,10 +487,10 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
     break;
   }
   default:
-    this->unknown_commands_set_.insert(command);
+    add_unique_to_vector(this->unknown_commands_set_, command);
     if (this->unknown_commands_text_sensor_)
     {
-      const auto cmd_ids = cmd_ids_to_string(this->unknown_commands_set_);
+      const auto cmd_ids = format_hex_pretty(this->unknown_commands_set_, ' ', false);
       this->unknown_commands_text_sensor_->publish_state(cmd_ids);
     }
     ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);

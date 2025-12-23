@@ -3,7 +3,6 @@
 #include <cinttypes>
 #include <vector>
 #include <deque>
-#include <set>
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -192,8 +191,8 @@ class Uyat : public Component, public uart::UARTDevice {
   CallbackManager<void()> initialized_callback_{};
 
   uint64_t num_garbage_bytes_{0};
-  std::set<uint8_t> unknown_commands_set_;
-  std::set<uint8_t> unknown_extended_commands_set_;
+  std::vector<uint8_t> unknown_commands_set_;
+  std::vector<uint8_t> unknown_extended_commands_set_;
 };
 
 }  // namespace uyat
