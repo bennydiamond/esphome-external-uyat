@@ -50,16 +50,16 @@ FACTORY_RESET_TYPES = {
     "APP_WIPE": FactoryResetType.BY_APP_WIPE,
 }
 
-DPTYPE_ANY = "any"
-DPTYPE_RAW = "raw"
-DPTYPE_BOOL = "bool"
-DPTYPE_UINT = "uint"
-DPTYPE_STRING = "string"
-DPTYPE_ENUM = "enum"
-DPTYPE_BITMASK8 = "bitmask8"
-DPTYPE_BITMASK16 = "bitmask16"
-DPTYPE_BITMASK32 = "bitmask32"
-DPTYPE_BITMASK = "bitmask"
+DPTYPE_ANY = "uyat_any"
+DPTYPE_RAW = "uyat_raw"
+DPTYPE_BOOL = "uyat_bool"
+DPTYPE_UINT = "uyat_uint"
+DPTYPE_STRING = "uyat_string"
+DPTYPE_ENUM = "uyat_enum"
+DPTYPE_BITMASK8 = "uyat_bitmask8"
+DPTYPE_BITMASK16 = "uyat_bitmask16"
+DPTYPE_BITMASK32 = "uyat_bitmask32"
+DPTYPE_BITMASK = "uyat_bitmask"
 
 DATAPOINT_TYPES = {
     DPTYPE_ANY: uyat_ns.struct("UyatDatapoint"),

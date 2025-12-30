@@ -40,11 +40,14 @@ struct DpBinarySensor
          {
             if (bit_number_ >= 8)
             {
-               ESP_LOGW(DpBinarySensor::TAG, "Bit number %d is too big for the 8bit bitmask!", bit_number_);
-               return;
+               value_ = false;
             }
-            const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-            value_ = inverted_? (!bit_value) : bit_value;
+            else
+            {
+               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
+               value_ = inverted_? (!bit_value) : bit_value;
+            }
+
             callback_(value_.value());
          }
          else
@@ -52,11 +55,14 @@ struct DpBinarySensor
          {
             if (bit_number_ >= 16)
             {
-               ESP_LOGW(DpBinarySensor::TAG, "Bit number %d is too big for the 16bit bitmask!", bit_number_);
-               return;
+               value_ = false;
             }
-            const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-            value_ = inverted_? (!bit_value) : bit_value;
+            else
+            {
+               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
+               value_ = inverted_? (!bit_value) : bit_value;
+            }
+
             callback_(value_.value());
          }
          else
@@ -64,11 +70,14 @@ struct DpBinarySensor
          {
             if (bit_number_ >= 32)
             {
-               ESP_LOGW(DpBinarySensor::TAG, "Bit number %d is too big for the 32bit bitmask!", bit_number_);
-               return;
+               value_ = false;
             }
-            const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-            value_ = inverted_? (!bit_value) : bit_value;
+            else
+            {
+               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
+               value_ = inverted_? (!bit_value) : bit_value;
+            }
+
             callback_(value_.value());
          }
          else
@@ -84,7 +93,7 @@ struct DpBinarySensor
       return value_;
    }
 
-   const std::string to_string() const
+   std::string config_to_string() const
    {
       if (matching_dp_.type)
       {

@@ -54,7 +54,7 @@ struct DpSwitch
       return set_value_;
    }
 
-   const std::string to_string() const
+   const std::string config_to_string() const
    {
       return str_sprintf("%s%s", this->inverted_? "Inverted " : "", this->matching_dp_.to_string().c_str());
    }
