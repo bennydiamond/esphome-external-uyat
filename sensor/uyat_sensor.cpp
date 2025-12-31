@@ -1,40 +1,57 @@
 #include "esphome/core/log.h"
+#include "esphome/core/entity_base.h"
 #include "uyat_sensor.h"
-#include <cinttypes>
 
-namespace esphome {
-namespace uyat {
+namespace esphome::uyat
+{
 
 static const char *const TAG = "uyat.sensor";
 
+void UyatSensor::configure_any_dp(const uint8_t dp_id)
+{
+  this->dp_sensor_.emplace(std::move(DpSensor::create_for_any([this](const float value){on_value(value);}, dp_id)));
+}
+
+void UyatSensor::configure_bool_dp(const uint8_t dp_id)
+{
+  this->dp_sensor_.emplace(std::move(DpSensor::create_for_bool([this](const float value){on_value(value);}, dp_id)));
+}
+
+void UyatSensor::configure_uint_dp(const uint8_t dp_id)
+{
+  this->dp_sensor_.emplace(std::move(DpSensor::create_for_uint([this](const float value){on_value(value);}, dp_id)));
+}
+
+void UyatSensor::configure_enum_dp(const uint8_t dp_id)
+{
+  this->dp_sensor_.emplace(std::move(DpSensor::create_for_enum([this](const float value){on_value(value);}, dp_id)));
+}
+
+void UyatSensor::configure_bitmask_dp(const uint8_t dp_id)
+{
+  this->dp_sensor_.emplace(std::move(DpSensor::create_for_bitmap([this](const float value){on_value(value);}, dp_id)));
+}
+
 void UyatSensor::setup() {
-  this->parent_->register_datapoint_listener(this->sensor_id_, [this](const UyatDatapoint &datapoint) {
-    if (auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %s", datapoint.number, ONOFF(dp_value->value));
-      this->publish_state(dp_value->value);
-    } else if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %d", datapoint.number, dp_value->value);
-      this->publish_state(dp_value->value);
-    } else if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %u", datapoint.number, dp_value->value);
-      this->publish_state(dp_value->value);
-    } else if (auto * dp_value = std::get_if<Bitmask8DatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %" PRIx32, datapoint.number, dp_value->value);
-      this->publish_state(dp_value->value);
-    } else if (auto * dp_value = std::get_if<Bitmask16DatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %" PRIx32, datapoint.number, dp_value->value);
-      this->publish_state(dp_value->value);
-    } else if (auto * dp_value = std::get_if<Bitmask32DatapointValue>(&datapoint.value)) {
-      ESP_LOGV(TAG, "MCU reported sensor %u is: %" PRIx32, datapoint.number, dp_value->value);
-      this->publish_state(dp_value->value);
-    }
-  });
+  assert(this->parent_);
+  this->dp_sensor_->init(*(this->parent_));
 }
 
 void UyatSensor::dump_config() {
   LOG_SENSOR("", "Uyat Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Sensor has datapoint ID %u", this->sensor_id_);
+  ESP_LOGCONFIG(TAG, "  Sensor %s is %s", get_object_id().c_str(), this->dp_sensor_? this->dp_sensor_->config_to_string().c_str() : "misconfigured!");
 }
 
-}  // namespace uyat
-}  // namespace esphome
+void UyatSensor::on_value(const float value)
+{
+  ESP_LOGV(TAG, "MCU reported %s is: %.4f", get_object_id().c_str(), value);
+  this->publish_state(value);
+}
+
+std::string UyatSensor::get_object_id() const
+{
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  return this->get_object_id_to(object_id_buf).str();
+}
+
+}  // namespace
