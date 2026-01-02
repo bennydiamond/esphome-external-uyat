@@ -107,6 +107,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void send_generic_command(const UyatCommand &command) { send_command_(command); }
   UyatInitState get_init_state();
+  void set_report_ap_name(const std::string& ap_name) { this->report_ap_name_ = ap_name; }
 
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
@@ -184,6 +185,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void stop_heartbeats_();
   void update_pairing_mode_();
 
+  std::string report_ap_name_ = "smartlife";
 #ifdef USE_TIME
   void send_local_time_();
   time::RealTimeClock *time_id_{nullptr};

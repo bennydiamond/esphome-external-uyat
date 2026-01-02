@@ -850,7 +850,7 @@ std::string Uyat::process_get_module_information_(const uint8_t *buffer, size_t 
 
   if (want_ssid)
   {
-    module_info_str += "\"ap:\":\"smartlife\"";
+    module_info_str += "\"ap:\":\"" + report_ap_name_ + "\"";
   }
   if (want_country_code)
   {
