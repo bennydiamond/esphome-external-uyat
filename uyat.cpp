@@ -17,6 +17,7 @@ static const uint8_t NET_STATUS_CLOUD_CONNECTED = 0x04;
 static const uint8_t FAKE_WIFI_RSSI = 100;
 static const uint64_t UART_MAX_POLL_TIME_MS = 50;
 
+#ifdef UYAT_DIAGNOSTICS_ENABLED
 static void add_unique_to_vector(std::vector<uint8_t> &vec, const uint8_t value) {
   if (std::find(vec.begin(), vec.end(), value) == vec.end()) {
     vec.push_back(value);
@@ -31,6 +32,7 @@ static bool remove_from_vector(std::vector<uint8_t> &vec, const uint8_t value) {
   }
   return false;
 }
+#endif
 
 void Uyat::setup() {
   schedule_heartbeat_(true);
@@ -38,6 +40,7 @@ void Uyat::setup() {
     this->status_pin_->digital_write(false);
   }
 
+#ifdef UYAT_DIAGNOSTICS_ENABLED
   if ((this->num_garbage_bytes_sensor_) || (this->unknown_commands_text_sensor_) ||
       (this->unknown_extended_commands_text_sensor_) || (this->unhandled_datapoints_text_sensor_))
   {
@@ -69,8 +72,9 @@ void Uyat::setup() {
   }
 
   this->defer([this]{
-    update_pairing_mode_();
+    update_pairing_mode_sensor_();
   });
+#endif
 }
 
 void Uyat::loop() {
@@ -190,10 +194,12 @@ void Uyat::handle_input_buffer_() {
       bytes_to_remove = this->rx_message_.size();
     }
 
+#ifdef UYAT_DIAGNOSTICS_ENABLED
     if (bytes_to_remove <= 1u)
     {
       this->num_garbage_bytes_ += bytes_to_remove;
     }
+#endif
     this->rx_message_.erase(this->rx_message_.begin(), this->rx_message_.begin() + bytes_to_remove);
   } while ((this->command_queue_.empty()) && (!this->rx_message_.empty()));  // stop if there's message to be sent or no input
 }
@@ -233,7 +239,12 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
     }
     if (valid) {
       this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
-      this->product_text_sensor_->publish_state(this->product_);
+#ifdef UYAT_DIAGNOSTICS_ENABLED
+      if (this->product_text_sensor_)
+      {
+        this->product_text_sensor_->publish_state(this->product_);
+      }
+#endif
     } else {
       this->product_ = R"({"p":"INVALID"})";
     }
@@ -287,7 +298,9 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
           this->wifi_status_ = UyatNetworkStatus::WIFI_CONFIGURED;
         }
         this->requested_wifi_config_is_ap_.reset();
-        update_pairing_mode_();
+#ifdef UYAT_DIAGNOSTICS_ENABLED
+        update_pairing_mode_sensor_();
+#endif
 
         this->send_wifi_status_(static_cast<uint8_t>(this->wifi_status_));
         this->wifi_status_ = UyatNetworkStatus::WIFI_CONNECTED;
@@ -344,7 +357,9 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
         this->requested_wifi_config_is_ap_ = 0x00;  // SMARTCONFIG
       }
 
-      update_pairing_mode_();
+#ifdef UYAT_DIAGNOSTICS_ENABLED
+      update_pairing_mode_sensor_();
+#endif
 
       this->init_state_ = UyatInitState::INIT_PRODUCT;
       this->send_empty_command_(UyatCommandType::WIFI_SELECT);
@@ -477,24 +492,18 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
       break;
     }
     default:
+#ifdef UYAT_DIAGNOSTICS_ENABLED
       add_unique_to_vector(this->unknown_extended_commands_set_, subcommand);
-      if (this->unknown_extended_commands_text_sensor_)
-      {
-        const auto cmd_ids = format_hex_pretty(this->unknown_extended_commands_set_, ' ', false);
-        this->unknown_extended_commands_text_sensor_->publish_state(cmd_ids);
-      }
+#endif
       ESP_LOGE(TAG, "Invalid extended services subcommand (0x%02X) received",
                subcommand);
     }
     break;
   }
   default:
+#ifdef UYAT_DIAGNOSTICS_ENABLED
     add_unique_to_vector(this->unknown_commands_set_, command);
-    if (this->unknown_commands_text_sensor_)
-    {
-      const auto cmd_ids = format_hex_pretty(this->unknown_commands_set_, ' ', false);
-      this->unknown_commands_text_sensor_->publish_state(cmd_ids);
-    }
+#endif
     ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
 }
@@ -546,6 +555,7 @@ void Uyat::handle_datapoints_(const uint8_t *buffer, size_t len) {
           }
         }
 
+#ifdef UYAT_DIAGNOSTICS_ENABLED
         if (!handled)
         {
           add_unique_to_vector(this->unhandled_datapoints_set_, datapoint->number);
@@ -554,6 +564,7 @@ void Uyat::handle_datapoints_(const uint8_t *buffer, size_t len) {
         {
           (void) remove_from_vector(this->unhandled_datapoints_set_, datapoint->number);
         }
+#endif
       }
     }
   }
@@ -749,7 +760,9 @@ void Uyat::register_datapoint_listener(const MatchingDatapoint& matching_dp,
     if (datapoint.matches(listener.configured))
     {
       listener.on_datapoint(datapoint);
+#ifdef UYAT_DIAGNOSTICS_ENABLED
       remove_from_vector(this->unhandled_datapoints_set_, datapoint.number);
+#endif
     }
   }
 }
@@ -893,7 +906,8 @@ void Uyat::stop_heartbeats_()
   this->heartbeats_enabled_ = false;
 }
 
-void Uyat::update_pairing_mode_()
+#ifdef UYAT_DIAGNOSTICS_ENABLED
+void Uyat::update_pairing_mode_sensor_()
 {
   if (this->pairing_mode_text_sensor_ != nullptr)
   {
@@ -912,6 +926,7 @@ void Uyat::update_pairing_mode_()
     }
   }
 }
+#endif
 
 void Uyat::trigger_factory_reset(const FactoryResetType reset_type)
 {

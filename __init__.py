@@ -201,6 +201,7 @@ async def to_code(config):
             trigger, [(DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]], "x")], conf
         )
     if diagnostics_config := config.get(CONF_DIAGNOSTICS):
+        cg.add_define("UYAT_DIAGNOSTICS_ENABLED")
         if CONF_PRODUCT in diagnostics_config:
             tsens = await esphome_text_sensor.new_text_sensor(
                 diagnostics_config[CONF_PRODUCT]
