@@ -45,8 +45,19 @@ struct DpText
       this->handler_->register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpText::TAG, "%s processing as text_sensor", datapoint.to_string());
 
+         if (!matching_dp_.matches(datapoint.get_type()))
+         {
+            ESP_LOGW(DpText::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
+            return;
+         }
+
          if (auto * dp_value = std::get_if<RawDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::RAW};
+               ESP_LOGI(DpText::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             this->received_value_ = std::string(dp_value->value.begin(), dp_value->value.end());
             this->received_value_ = this->decode_(this->received_value_);
             callback_(this->received_value_);
@@ -54,13 +65,13 @@ struct DpText
          else
          if (auto * dp_value = std::get_if<StringDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::STRING};
+               ESP_LOGI(DpText::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             this->received_value_ = this->decode_(dp_value->value);
             callback_(this->received_value_);
-         }
-         else
-         {
-            ESP_LOGW(DpText::TAG, "Unhandled datapoint type %s!", datapoint.get_type_name());
-            return;
          }
       });
    }
@@ -92,6 +103,13 @@ struct DpText
 
       ESP_LOGV(DpText::TAG, "Setting value to %s for %s", value.c_str(), this->config_to_string().c_str());
       this->set_value_ = value;
+
+      if (!this->matching_dp_.allows_single_type())
+      {
+         ESP_LOGW(DpText::TAG, "Cannot set value, datapoint type not yet known for %s", this->matching_dp_.to_string().c_str());
+         return;
+      }
+
       std::optional<UyatDatapoint> to_set_dp;
       if (this->data_encoding_ == TextDataEncoding::AS_BASE64)
       {
@@ -102,14 +120,14 @@ struct DpText
             return;
          }
 
-         if (this->matching_dp_.type == UyatDatapointType::RAW)
+         if (this->matching_dp_.matches(UyatDatapointType::RAW))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
                RawDatapointValue{std::vector<uint8_t>(encoded.begin(), encoded.end())}
             };
          }
-         if (this->matching_dp_.type == UyatDatapointType::STRING)
+         if (this->matching_dp_.matches(UyatDatapointType::STRING))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
@@ -127,14 +145,14 @@ struct DpText
             return;
          }
 
-         if (this->matching_dp_.type == UyatDatapointType::RAW)
+         if (this->matching_dp_.matches(UyatDatapointType::RAW))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
                RawDatapointValue{parsed}
             };
          }
-         if (this->matching_dp_.type == UyatDatapointType::STRING)
+         if (this->matching_dp_.matches(UyatDatapointType::STRING))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
@@ -144,14 +162,14 @@ struct DpText
       }
       else
       {
-         if (this->matching_dp_.type == UyatDatapointType::RAW)
+         if (this->matching_dp_.matches(UyatDatapointType::RAW))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
                RawDatapointValue{std::vector<uint8_t>(value.begin(), value.end())}
             };
          }
-         if (this->matching_dp_.type == UyatDatapointType::STRING)
+         if (this->matching_dp_.matches(UyatDatapointType::STRING))
          {
             to_set_dp = UyatDatapoint{
                this->matching_dp_.number,
@@ -169,14 +187,19 @@ struct DpText
       this->handler_->set_datapoint_value(to_set_dp.value());
    }
 
+   static DpText create_for_any(const OnValueCallback& callback, const uint8_t dp_id, const TextDataEncoding data_encoding)
+   {
+      return DpText(callback, MatchingDatapoint{dp_id, {UyatDatapointType::RAW, UyatDatapointType::STRING}}, data_encoding);
+   }
+
    static DpText create_for_raw(const OnValueCallback& callback, const uint8_t dp_id, const TextDataEncoding data_encoding)
    {
-      return DpText(callback, MatchingDatapoint{dp_id, UyatDatapointType::RAW}, data_encoding);
+      return DpText(callback, MatchingDatapoint{dp_id, {UyatDatapointType::RAW}}, data_encoding);
    }
 
    static DpText create_for_string(const OnValueCallback& callback, const uint8_t dp_id, const TextDataEncoding data_encoding)
    {
-      return DpText(callback, MatchingDatapoint{dp_id, UyatDatapointType::STRING}, data_encoding);
+      return DpText(callback, MatchingDatapoint{dp_id, {UyatDatapointType::STRING}}, data_encoding);
    }
 
    DpText(DpText&&) = default;
@@ -217,7 +240,7 @@ private:
    }
 
    OnValueCallback callback_;
-   const MatchingDatapoint matching_dp_;
+   MatchingDatapoint matching_dp_;
    const TextDataEncoding data_encoding_;
 
    DatapointHandler* handler_;

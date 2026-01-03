@@ -19,27 +19,44 @@ struct DpSwitch
       this->handler_->register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpSwitch::TAG, "%s processing as switch", datapoint.to_string());
 
+         if (!matching_dp_.matches(datapoint.get_type()))
+         {
+            ESP_LOGW(DpSwitch::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
+            return;
+         }
+
          if (auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::BOOLEAN};
+               ESP_LOGI(DpSwitch::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             received_value_ = invert_if_needed(dp_value->value);
             callback_(received_value_.value());
          }
          else
          if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::INTEGER};
+               ESP_LOGI(DpSwitch::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
+
             received_value_ = invert_if_needed(dp_value->value != 0);
             callback_(received_value_.value());
          }
          else
          if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::ENUM};
+               ESP_LOGI(DpSwitch::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             received_value_ = invert_if_needed(dp_value->value != 0);
             callback_(received_value_.value());
-         }
-         else
-         {
-            ESP_LOGW(DpSwitch::TAG, "Unhandled datapoint type %s!", datapoint.get_type_name());
-            return;
          }
       });
    }
@@ -64,35 +81,45 @@ struct DpSwitch
       assert(handler_);
 
       this->set_value_ = value;
-      if (this->matching_dp_.type == UyatDatapointType::BOOLEAN)
+      if (!this->matching_dp_.allows_single_type())
+      {
+         ESP_LOGW(DpSwitch::TAG, "Cannot set value, datapoint type not yet known for %s", this->matching_dp_.to_string().c_str());
+         return;
+      }
+      if (this->matching_dp_.matches(UyatDatapointType::BOOLEAN))
       {
          handler_->set_datapoint_value(UyatDatapoint{this->matching_dp_.number, BoolDatapointValue{invert_if_needed(value)}}, force);
       }
       else
-      if (this->matching_dp_.type == UyatDatapointType::INTEGER)
+      if (this->matching_dp_.matches(UyatDatapointType::INTEGER))
       {
          handler_->set_datapoint_value(UyatDatapoint{this->matching_dp_.number, UIntDatapointValue{invert_if_needed(value)? 0x01u : 0x00u}}, force);
       }
       else
-      if (this->matching_dp_.type == UyatDatapointType::ENUM)
+      if (this->matching_dp_.matches(UyatDatapointType::ENUM))
       {
          handler_->set_datapoint_value(UyatDatapoint{this->matching_dp_.number, UIntDatapointValue{invert_if_needed(value)? 0x01u : 0x00u}}, force);
       }
    }
 
+   static DpSwitch create_for_any(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
+   {
+      return DpSwitch(callback, MatchingDatapoint{dp_id, {UyatDatapointType::BOOLEAN, UyatDatapointType::INTEGER, UyatDatapointType::ENUM}}, inverted);
+   }
+
    static DpSwitch create_for_bool(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpSwitch(callback, MatchingDatapoint{dp_id, UyatDatapointType::BOOLEAN}, inverted);
+      return DpSwitch(callback, MatchingDatapoint{dp_id, {UyatDatapointType::BOOLEAN}}, inverted);
    }
 
    static DpSwitch create_for_uint(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpSwitch(callback, MatchingDatapoint{dp_id, UyatDatapointType::INTEGER}, inverted);
+      return DpSwitch(callback, MatchingDatapoint{dp_id, {UyatDatapointType::INTEGER}}, inverted);
    }
 
    static DpSwitch create_for_enum(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpSwitch(callback, MatchingDatapoint{dp_id, UyatDatapointType::ENUM}, inverted);
+      return DpSwitch(callback, MatchingDatapoint{dp_id, {UyatDatapointType::ENUM}}, inverted);
    }
 
    DpSwitch(DpSwitch&&) = default;
@@ -112,7 +139,7 @@ private:
    }
 
    OnValueCallback callback_;
-   const MatchingDatapoint matching_dp_;
+   MatchingDatapoint matching_dp_;
    const bool inverted_;
 
    DatapointHandler* handler_;

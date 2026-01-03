@@ -53,6 +53,7 @@ FACTORY_RESET_TYPES = {
 }
 
 DPTYPE_ANY = "uyat_any"
+DPTYPE_DETECT = "uyat_detect"
 DPTYPE_RAW = "uyat_raw"
 DPTYPE_BOOL = "uyat_bool"
 DPTYPE_UINT = "uyat_uint"

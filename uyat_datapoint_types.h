@@ -25,7 +25,7 @@ enum class UyatDatapointType: uint8_t {
 struct MatchingDatapoint
 {
   uint8_t number;
-  std::optional<UyatDatapointType> type;  // empty means any
+  std::vector<UyatDatapointType> types;
 
   static constexpr const char* get_type_name(const UyatDatapointType dp_type)
   {
@@ -50,14 +50,50 @@ struct MatchingDatapoint
 
   std::string to_string() const
   {
-    if (type)
+    std::string type_list;
+    if (types.empty())
     {
-      return str_sprintf("Datapoint %u: %s", number, get_type_name(type.value()));
+      type_list = "ANY";
     }
     else
     {
-      return str_sprintf("Datapoint %u: ANY", number);
+      for (const auto& type : types)
+      {
+        if (!type_list.empty())
+        {
+          type_list += ", ";
+        }
+        type_list += get_type_name(type);
+      }
     }
+    return str_sprintf("Datapoint %u:", number) + type_list;
+  }
+
+  bool matches(const UyatDatapointType dp_type) const
+  {
+    if (types.empty())
+    {
+      return true;
+    }
+
+    for (const auto& type : types)
+    {
+      if (type == dp_type)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool allows_single_type() const
+  {
+    return types.size() == 1;
+  }
+
+  bool allows_any_type() const
+  {
+    return types.empty();
   }
 };
 
@@ -229,11 +265,6 @@ struct UyatDatapoint {
   uint8_t number;
   AnyDatapointValue value;
 
-  MatchingDatapoint make_matching() const
-  {
-    return MatchingDatapoint{number, get_type()};
-  }
-
   bool matches(const UyatDatapoint& other) const
   {
     if (other.number != number)
@@ -246,12 +277,7 @@ struct UyatDatapoint {
 
   bool matches(const MatchingDatapoint& matching) const
   {
-    if (matching.number != number)
-    {
-      return false;
-    }
-
-    return (!matching.type) || (matching.type == get_type());
+    return (matching.number == number) && (matching.matches(get_type()));
   }
 
   constexpr UyatDatapointType get_type() const

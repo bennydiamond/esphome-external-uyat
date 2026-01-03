@@ -18,26 +18,53 @@ struct DpBinarySensor
       handler.register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpBinarySensor::TAG, "%s processing as binary sensor", datapoint.to_string());
 
+         if (!matching_dp_.matches(datapoint.get_type()))
+         {
+            ESP_LOGW(DpBinarySensor::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
+            return;
+         }
+
          if (auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::BOOLEAN};
+               ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             value_ = inverted_? (!dp_value->value) : dp_value->value;
             callback_(value_.value());
          }
          else
          if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::INTEGER};
+               ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             value_ = inverted_? (dp_value->value == 0) : (dp_value->value != 0);
             callback_(value_.value());
          }
          else
          if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::ENUM};
+               ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
             value_ = inverted_? (dp_value->value == 0) : (dp_value->value != 0);
             callback_(value_.value());
          }
          else
          if (auto * dp_value = std::get_if<BitmapDatapointValue>(&datapoint.value))
          {
+            if (!this->matching_dp_.allows_single_type())
+            {
+               this->matching_dp_.types = {UyatDatapointType::BITMAP};
+               ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+            }
+
             if (bit_number_ >= 32)
             {
                value_ = false;
@@ -49,11 +76,6 @@ struct DpBinarySensor
             }
 
             callback_(value_.value());
-         }
-         else
-         {
-            ESP_LOGW(DpBinarySensor::TAG, "Unhandled datapoint type %s!", datapoint.get_type_name());
-            return;
          }
       });
    }
@@ -68,24 +90,29 @@ struct DpBinarySensor
       return str_sprintf("%s%s", this->inverted_? "Inverted " : "", this->matching_dp_.to_string().c_str());
    }
 
+   static DpBinarySensor create_for_any(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
+   {
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {UyatDatapointType::BOOLEAN, UyatDatapointType::INTEGER, UyatDatapointType::ENUM, UyatDatapointType::BITMAP}}, 0, inverted);
+   }
+
    static DpBinarySensor create_for_bool(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpBinarySensor(callback, MatchingDatapoint{dp_id, UyatDatapointType::BOOLEAN}, 0, inverted);
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {UyatDatapointType::BOOLEAN}}, 0, inverted);
    }
 
    static DpBinarySensor create_for_uint(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpBinarySensor(callback, MatchingDatapoint{dp_id, UyatDatapointType::INTEGER}, 0, inverted);
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {UyatDatapointType::INTEGER}}, 0, inverted);
    }
 
    static DpBinarySensor create_for_enum(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
    {
-      return DpBinarySensor(callback, MatchingDatapoint{dp_id, UyatDatapointType::ENUM}, 0, inverted);
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {UyatDatapointType::ENUM}}, 0, inverted);
    }
 
    static DpBinarySensor create_for_bitmap(const OnValueCallback& callback, const uint8_t dp_id, const uint8_t bit_number, const bool inverted = false)
    {
-      return DpBinarySensor(callback, MatchingDatapoint{dp_id, UyatDatapointType::BITMAP}, bit_number, inverted);
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {UyatDatapointType::BITMAP}}, bit_number, inverted);
    }
 
    DpBinarySensor(DpBinarySensor&&) = default;
@@ -101,7 +128,7 @@ private:
    {}
 
    OnValueCallback callback_;
-   const MatchingDatapoint matching_dp_;
+   MatchingDatapoint matching_dp_;
    const uint8_t bit_number_; // only matters for bitmap
    const bool inverted_;
 

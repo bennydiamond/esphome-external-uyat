@@ -29,6 +29,12 @@ struct DpVAP
       handler.register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpVAP::TAG, "%s processing as VAP", datapoint.to_string());
 
+         if (!matching_dp_.matches(datapoint.get_type()))
+         {
+            ESP_LOGW(DpVAP::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
+            return;
+         }
+
          if (auto * dp_value = std::get_if<RawDatapointValue>(&datapoint.value))
          {
             if (auto decoded = decode_(dp_value->value))
@@ -43,11 +49,7 @@ struct DpVAP
          }
          else
          {
-            if (matching_dp_.type.has_value())
-            {
-               ESP_LOGW(DpVAP::TAG, "Unhandled datapoint type %s!", datapoint.get_type_name());
-            }
-
+            ESP_LOGW(DpVAP::TAG, "Unhandled datapoint type %s!", datapoint.get_type_name());
             return;
          }
       });
@@ -65,7 +67,7 @@ struct DpVAP
 
    static DpVAP create_for_raw(const OnValueCallback& callback, const uint8_t dp_id)
    {
-      return DpVAP(callback, MatchingDatapoint{dp_id, UyatDatapointType::RAW});
+      return DpVAP(callback, MatchingDatapoint{.number = dp_id, .types = {UyatDatapointType::RAW}});
    }
 
    DpVAP(DpVAP&&) = default;

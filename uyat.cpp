@@ -738,13 +738,13 @@ void Uyat::send_datapoint_command_(uint8_t datapoint_id,
 
 void Uyat::register_datapoint_listener(const uint8_t datapoint_id,
                              const OnDatapointCallback &func) {
-  register_datapoint_listener(MatchingDatapoint{datapoint_id, {}}, func);
+  register_datapoint_listener(MatchingDatapoint{.number = datapoint_id, .types = {}}, func);
 }
 
 void Uyat::register_datapoint_listener(const uint8_t datapoint_id,
                              const UyatDatapointType type,
                              const OnDatapointCallback &func) {
-  register_datapoint_listener(MatchingDatapoint{datapoint_id, type}, func);
+  register_datapoint_listener(MatchingDatapoint{.number = datapoint_id, .types = {type}}, func);
 }
 
 void Uyat::register_datapoint_listener(const MatchingDatapoint& matching_dp,
