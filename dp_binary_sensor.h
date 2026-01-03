@@ -36,37 +36,7 @@ struct DpBinarySensor
             callback_(value_.value());
          }
          else
-         if (auto * dp_value = std::get_if<Bitmask8DatapointValue>(&datapoint.value))
-         {
-            if (bit_number_ >= 8)
-            {
-               value_ = false;
-            }
-            else
-            {
-               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-               value_ = inverted_? (!bit_value) : bit_value;
-            }
-
-            callback_(value_.value());
-         }
-         else
-         if (auto * dp_value = std::get_if<Bitmask16DatapointValue>(&datapoint.value))
-         {
-            if (bit_number_ >= 16)
-            {
-               value_ = false;
-            }
-            else
-            {
-               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-               value_ = inverted_? (!bit_value) : bit_value;
-            }
-
-            callback_(value_.value());
-         }
-         else
-         if (auto * dp_value = std::get_if<Bitmask32DatapointValue>(&datapoint.value))
+         if (auto * dp_value = std::get_if<BitmapDatapointValue>(&datapoint.value))
          {
             if (bit_number_ >= 32)
             {
@@ -95,14 +65,7 @@ struct DpBinarySensor
 
    std::string config_to_string() const
    {
-      if (matching_dp_.type)
-      {
-         return str_sprintf("%s%s", this->inverted_? "Inverted " : "", this->matching_dp_.to_string().c_str());
-      }
-      else
-      {
-         return str_sprintf("%s Datapoint %u: BITMAP, bit %u", this->inverted_? "Inverted " : "", this->matching_dp_.number, this->bit_number_);
-      }
+      return str_sprintf("%s%s", this->inverted_? "Inverted " : "", this->matching_dp_.to_string().c_str());
    }
 
    static DpBinarySensor create_for_bool(const OnValueCallback& callback, const uint8_t dp_id, const bool inverted = false)
@@ -122,8 +85,7 @@ struct DpBinarySensor
 
    static DpBinarySensor create_for_bitmap(const OnValueCallback& callback, const uint8_t dp_id, const uint8_t bit_number, const bool inverted = false)
    {
-      // todo: set matching to any bitmask type
-      return DpBinarySensor(callback, MatchingDatapoint{dp_id, {}}, bit_number, inverted);
+      return DpBinarySensor(callback, MatchingDatapoint{dp_id, UyatDatapointType::BITMAP}, bit_number, inverted);
    }
 
    DpBinarySensor(DpBinarySensor&&) = default;
@@ -140,7 +102,7 @@ private:
 
    OnValueCallback callback_;
    const MatchingDatapoint matching_dp_;
-   const uint8_t bit_number_; // only matters for bitmask
+   const uint8_t bit_number_; // only matters for bitmap
    const bool inverted_;
 
    std::optional<bool> value_;

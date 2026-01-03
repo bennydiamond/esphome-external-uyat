@@ -82,7 +82,7 @@ private:
    {
       if (raw_data.size() != 8u)
       {
-         return {};
+         return std::nullopt;
       }
 
       return VAPValue{

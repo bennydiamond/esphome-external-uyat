@@ -7,15 +7,8 @@ static const char *const TAG = "uyat.automation";
 namespace esphome {
 namespace uyat {
 
-void check_expected_datapoint(const UyatDatapoint &dp, UyatDatapointType expected) {
-  if (dp.get_type() != expected) {
-    ESP_LOGW(TAG, "Uyat sensor %u expected datapoint type %#02hhX but got %#02hhX", dp.number, dp.number,
-             static_cast<uint8_t>(expected), static_cast<uint8_t>(dp.get_type()));
-  }
-}
-
 UyatRawDatapointUpdateTrigger::UyatRawDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::RAW, [this](const UyatDatapoint &dp) {
     auto * dp_value = std::get_if<RawDatapointValue>(&dp.value);
     if (!dp_value)
     {
@@ -27,7 +20,7 @@ UyatRawDatapointUpdateTrigger::UyatRawDatapointUpdateTrigger(Uyat *parent, uint8
 }
 
 UyatBoolDatapointUpdateTrigger::UyatBoolDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::BOOLEAN, [this](const UyatDatapoint &dp) {
     auto * dp_value = std::get_if<BoolDatapointValue>(&dp.value);
     if (!dp_value)
     {
@@ -39,7 +32,7 @@ UyatBoolDatapointUpdateTrigger::UyatBoolDatapointUpdateTrigger(Uyat *parent, uin
 }
 
 UyatUIntDatapointUpdateTrigger::UyatUIntDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::INTEGER, [this](const UyatDatapoint &dp) {
     auto * dp_value = std::get_if<UIntDatapointValue>(&dp.value);
     if (!dp_value)
     {
@@ -51,7 +44,7 @@ UyatUIntDatapointUpdateTrigger::UyatUIntDatapointUpdateTrigger(Uyat *parent, uin
 }
 
 UyatStringDatapointUpdateTrigger::UyatStringDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::STRING, [this](const UyatDatapoint &dp) {
     auto * dp_value = std::get_if<StringDatapointValue>(&dp.value);
     if (!dp_value)
     {
@@ -63,7 +56,7 @@ UyatStringDatapointUpdateTrigger::UyatStringDatapointUpdateTrigger(Uyat *parent,
 }
 
 UyatEnumDatapointUpdateTrigger::UyatEnumDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::ENUM, [this](const UyatDatapoint &dp) {
     auto * dp_value = std::get_if<EnumDatapointValue>(&dp.value);
     if (!dp_value)
     {
@@ -74,36 +67,12 @@ UyatEnumDatapointUpdateTrigger::UyatEnumDatapointUpdateTrigger(Uyat *parent, uin
   });
 }
 
-UyatBitmask8DatapointUpdateTrigger::UyatBitmask8DatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
-    auto * dp_value = std::get_if<Bitmask8DatapointValue>(&dp.value);
+UyatBitmapDatapointUpdateTrigger::UyatBitmapDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
+  parent->register_datapoint_listener(sensor_id, UyatDatapointType::BITMAP, [this](const UyatDatapoint &dp) {
+    auto * dp_value = std::get_if<BitmapDatapointValue>(&dp.value);
     if (!dp_value)
     {
-      ESP_LOGW(TAG, "Unexpected datapoint %d type (expected BITMASK8, got %s)!", dp.number, dp.get_type_name());
-      return;
-    }
-    this->trigger(dp_value->value);
-  });
-}
-
-UyatBitmask16DatapointUpdateTrigger::UyatBitmask16DatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
-    auto * dp_value = std::get_if<Bitmask16DatapointValue>(&dp.value);
-    if (!dp_value)
-    {
-      ESP_LOGW(TAG, "Unexpected datapoint %d type (expected BITMASK16, got %s)!", dp.number, dp.get_type_name());
-      return;
-    }
-    this->trigger(dp_value->value);
-  });
-}
-
-UyatBitmask32DatapointUpdateTrigger::UyatBitmask32DatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {
-  parent->register_datapoint_listener(sensor_id, [this](const UyatDatapoint &dp) {
-    auto * dp_value = std::get_if<Bitmask32DatapointValue>(&dp.value);
-    if (!dp_value)
-    {
-      ESP_LOGW(TAG, "Unexpected datapoint %d type (expected BITMASK32, got %s)!", dp.number, dp.get_type_name());
+      ESP_LOGW(TAG, "Unexpected datapoint %d type (expected BITMAP, got %s)!", dp.number, dp.get_type_name());
       return;
     }
     this->trigger(dp_value->value);

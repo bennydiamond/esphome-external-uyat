@@ -711,7 +711,7 @@ void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
     }
   }
 
-  this->send_datapoint_command_(dp.number, dp.get_internal_type(), dp.value_to_payload());
+  this->send_datapoint_command_(dp.number, dp.get_type(), dp.value_to_payload());
 }
 
 optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
@@ -723,7 +723,7 @@ optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
 }
 
 void Uyat::send_datapoint_command_(uint8_t datapoint_id,
-                                   UyatDatapointTypeInternal datapoint_type,
+                                   UyatDatapointType datapoint_type,
                                    std::vector<uint8_t> data) {
   std::vector<uint8_t> buffer;
   buffer.push_back(datapoint_id);

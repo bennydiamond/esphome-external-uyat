@@ -27,7 +27,7 @@ void UyatSensor::configure_enum_dp(const uint8_t dp_id)
   this->dp_number_.emplace(std::move(DpNumber::create_for_enum([this](const float value){on_value(value);}, dp_id)));
 }
 
-void UyatSensor::configure_bitmask_dp(const uint8_t dp_id)
+void UyatSensor::configure_bitmap_dp(const uint8_t dp_id)
 {
   this->dp_number_.emplace(std::move(DpNumber::create_for_bitmap([this](const float value){on_value(value);}, dp_id)));
 }

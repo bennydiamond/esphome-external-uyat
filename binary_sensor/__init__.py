@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR_DATAPOINT, CONF_NUMBER
 
-from .. import CONF_UYAT_ID, CONF_DATAPOINT_TYPE, uyat_ns, Uyat, DPTYPE_BOOL, DPTYPE_UINT, DPTYPE_ENUM, DPTYPE_BITMASK
+from .. import CONF_UYAT_ID, CONF_DATAPOINT_TYPE, uyat_ns, Uyat, DPTYPE_BOOL, DPTYPE_UINT, DPTYPE_ENUM, DPTYPE_BITMAP
 
 DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
@@ -18,7 +18,7 @@ BINARY_SENSOR_DP_TYPES = [
     DPTYPE_BOOL,
     DPTYPE_UINT,
     DPTYPE_ENUM,
-    DPTYPE_BITMASK,
+    DPTYPE_BITMAP,
 ]
 
 CONFIG_SCHEMA = (
@@ -53,8 +53,8 @@ async def to_code(config):
     if not isinstance(dp_config, dict):
         cg.add(var.configure_bool_dp(dp_config))
     else:
-        if dp_config[CONF_DATAPOINT_TYPE]==DPTYPE_BITMASK:
-            cg.add(var.configure_bitmask_dp(dp_config[CONF_NUMBER], cg.uint8(dp_config[CONF_BIT_NUMBER]-1)))
+        if dp_config[CONF_DATAPOINT_TYPE]==DPTYPE_BITMAP:
+            cg.add(var.configure_bitmap_dp(dp_config[CONF_NUMBER], cg.uint8(dp_config[CONF_BIT_NUMBER]-1)))
         elif dp_config[CONF_DATAPOINT_TYPE]==DPTYPE_BOOL:
             cg.add(var.configure_bool_dp(dp_config[CONF_NUMBER]))
         elif dp_config[CONF_DATAPOINT_TYPE]==DPTYPE_UINT:

@@ -38,19 +38,7 @@ struct DpNumber
             callback_(received_value_.value());
          }
          else
-         if (auto * dp_value = std::get_if<Bitmask8DatapointValue>(&datapoint.value))
-         {
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
-         }
-         else
-         if (auto * dp_value = std::get_if<Bitmask16DatapointValue>(&datapoint.value))
-         {
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
-         }
-         else
-         if (auto * dp_value = std::get_if<Bitmask32DatapointValue>(&datapoint.value))
+         if (auto * dp_value = std::get_if<BitmapDatapointValue>(&datapoint.value))
          {
             this->received_value_ = calculate_logical_value(dp_value->value);
             callback_(received_value_.value());
@@ -78,12 +66,11 @@ struct DpNumber
       ESP_LOGV(DpNumber::TAG, "Setting value to %.3f for %s", value, this->config_to_string().c_str());
       this->set_value_ = value;
       uint32_t raw_value = static_cast<uint32_t>((lround(value / this->multiplier_) - (this->offset_)));
-      if (this->matching_dp_.type.has_value() == false)
+      if (this->matching_dp_.type == UyatDatapointType::BITMAP)
       {
-         // assume bitmask
          this->handler_->set_datapoint_value(UyatDatapoint{
             this->matching_dp_.number,
-            Bitmask32DatapointValue{raw_value}
+            BitmapDatapointValue{raw_value}
          });
       }
       else
@@ -116,14 +103,7 @@ struct DpNumber
 
    std::string config_to_string() const
    {
-      if (matching_dp_.type)
-      {
-         return str_sprintf("%s, offset=%d, multiplier=%.2f", this->matching_dp_.to_string().c_str(), this->offset_, this->multiplier_);
-      }
-      else
-      {
-         return str_sprintf("Datapoint %u: BITMAP, offset=%d, multiplier=%.2f", this->matching_dp_.number, this->offset_, this->multiplier_);
-      }
+      return str_sprintf("%s, offset=%d, multiplier=%.2f", this->matching_dp_.to_string().c_str(), this->offset_, this->multiplier_);
    }
 
    static DpNumber create_for_any(const OnValueCallback& callback, const uint8_t dp_id, const int32_t offset = 0, const uint16_t scale = 0)
@@ -149,8 +129,7 @@ struct DpNumber
 
    static DpNumber create_for_bitmap(const OnValueCallback& callback, const uint8_t dp_id, const int32_t offset = 0, const uint16_t scale = 0)
    {
-      // todo: set matching to any bitmask type
-      return DpNumber(callback, MatchingDatapoint{dp_id, {}}, offset, scale);
+      return DpNumber(callback, MatchingDatapoint{dp_id, UyatDatapointType::BITMAP}, offset, scale);
    }
 
    DpNumber(DpNumber&&) = default;

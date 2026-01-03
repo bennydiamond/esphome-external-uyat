@@ -22,7 +22,7 @@ void UyatBinarySensor::configure_enum_dp(const uint8_t dp_id)
   this->dp_binary_sensor_.emplace(std::move(DpBinarySensor::create_for_enum([this](const bool value){on_value(value);}, dp_id)));
 }
 
-void UyatBinarySensor::configure_bitmask_dp(const uint8_t dp_id, const uint8_t bit_number)
+void UyatBinarySensor::configure_bitmap_dp(const uint8_t dp_id, const uint8_t bit_number)
 {
   this->dp_binary_sensor_.emplace(std::move(DpBinarySensor::create_for_bitmap([this](const bool value){on_value(value);}, dp_id, bit_number)));
 }

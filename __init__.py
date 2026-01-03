@@ -58,10 +58,7 @@ DPTYPE_BOOL = "uyat_bool"
 DPTYPE_UINT = "uyat_uint"
 DPTYPE_STRING = "uyat_string"
 DPTYPE_ENUM = "uyat_enum"
-DPTYPE_BITMASK8 = "uyat_bitmask8"
-DPTYPE_BITMASK16 = "uyat_bitmask16"
-DPTYPE_BITMASK32 = "uyat_bitmask32"
-DPTYPE_BITMASK = "uyat_bitmask"
+DPTYPE_BITMAP = "uyat_bitmap"
 
 DATAPOINT_TYPES = {
     DPTYPE_ANY: uyat_ns.struct("UyatDatapoint"),
@@ -70,9 +67,7 @@ DATAPOINT_TYPES = {
     DPTYPE_UINT: cg.uint32,
     DPTYPE_STRING: cg.std_string,
     DPTYPE_ENUM: cg.uint8,
-    DPTYPE_BITMASK8: cg.uint8,
-    DPTYPE_BITMASK16: cg.uint16,
-    DPTYPE_BITMASK32: cg.uint32,
+    DPTYPE_BITMAP: cg.uint32,
 }
 
 DATAPOINT_TRIGGERS = {
@@ -100,17 +95,9 @@ DATAPOINT_TRIGGERS = {
         "UyatEnumDatapointUpdateTrigger",
         automation.Trigger.template(DATAPOINT_TYPES[DPTYPE_ENUM]),
     ),
-    DPTYPE_BITMASK8: uyat_ns.class_(
-        "UyatBitmask8DatapointUpdateTrigger",
-        automation.Trigger.template(DATAPOINT_TYPES[DPTYPE_BITMASK8]),
-    ),
-    DPTYPE_BITMASK16: uyat_ns.class_(
-        "UyatBitmask16DatapointUpdateTrigger",
-        automation.Trigger.template(DATAPOINT_TYPES[DPTYPE_BITMASK16]),
-    ),
-    DPTYPE_BITMASK32: uyat_ns.class_(
-        "UyatBitmask32DatapointUpdateTrigger",
-        automation.Trigger.template(DATAPOINT_TYPES[DPTYPE_BITMASK32]),
+    DPTYPE_BITMAP: uyat_ns.class_(
+        "UyatBitmapDatapointUpdateTrigger",
+        automation.Trigger.template(DATAPOINT_TYPES[DPTYPE_BITMAP]),
     ),
 }
 

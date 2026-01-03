@@ -23,7 +23,7 @@ class UyatSensor : public sensor::Sensor, public Component {
   void configure_bool_dp(const uint8_t dp_id);
   void configure_uint_dp(const uint8_t dp_id);
   void configure_enum_dp(const uint8_t dp_id);
-  void configure_bitmask_dp(const uint8_t dp_id);
+  void configure_bitmap_dp(const uint8_t dp_id);
 
   void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 

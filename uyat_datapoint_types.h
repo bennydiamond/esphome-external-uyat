@@ -13,24 +13,13 @@ namespace esphome::uyat
 {
 
 // this is the actual value sent to the mcu
-enum UyatDatapointTypeInternal: uint8_t {
+enum class UyatDatapointType: uint8_t {
   RAW = 0x00,      // variable length
   BOOLEAN = 0x01,  // 1 byte (0/1)
   INTEGER = 0x02,  // 4 byte
   STRING = 0x03,   // variable length
   ENUM = 0x04,     // 1 byte
-  BITMASK = 0x05,  // 1/2/4 bytes
-};
-
-enum class UyatDatapointType {
-  RAW,
-  BOOLEAN,
-  INTEGER,
-  STRING,
-  ENUM,
-  BITMASK8,
-  BITMASK16,
-  BITMASK32,
+  BITMAP = 0x05,  // 1/2/4 bytes
 };
 
 struct MatchingDatapoint
@@ -52,12 +41,8 @@ struct MatchingDatapoint
         return "STRING";
       case UyatDatapointType::ENUM:
         return "ENUM";
-      case UyatDatapointType::BITMASK8:
-        return "BITMASK8";
-      case UyatDatapointType::BITMASK16:
-        return "BITMASK16";
-      case UyatDatapointType::BITMASK32:
-        return "BITMASK32";
+      case UyatDatapointType::BITMAP:
+        return "BITMAP";
       default:
         return "UNKNOWN";
     }
@@ -78,7 +63,6 @@ struct MatchingDatapoint
 
 struct RawDatapointValue {
   static constexpr UyatDatapointType dp_type = UyatDatapointType::RAW;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::RAW;
   std::vector<uint8_t> value;
 
   std::string to_string() const
@@ -99,7 +83,6 @@ struct RawDatapointValue {
 
 struct BoolDatapointValue {
   static constexpr UyatDatapointType dp_type = UyatDatapointType::BOOLEAN;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::BOOLEAN;
   bool value;
 
   std::string to_string() const
@@ -120,7 +103,6 @@ struct BoolDatapointValue {
 
 struct UIntDatapointValue {
   static constexpr UyatDatapointType dp_type = UyatDatapointType::INTEGER;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::INTEGER;
   uint32_t value;
 
   std::string to_string() const
@@ -147,7 +129,6 @@ struct UIntDatapointValue {
 
 struct StringDatapointValue {
   static constexpr UyatDatapointType dp_type = UyatDatapointType::STRING;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::STRING;
   std::string value;
 
   std::string to_string() const
@@ -174,7 +155,6 @@ struct StringDatapointValue {
 
 struct EnumDatapointValue {
   static constexpr UyatDatapointType dp_type = UyatDatapointType::ENUM;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::ENUM;
   uint8_t value;
 
   std::string to_string() const
@@ -193,55 +173,8 @@ struct EnumDatapointValue {
   }
 };
 
-struct Bitmask8DatapointValue {
-  static constexpr UyatDatapointType dp_type = UyatDatapointType::BITMASK8;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::BITMASK;
-  uint8_t value;
-
-  std::string to_string() const
-  {
-    return str_sprintf("%02X", value);
-  }
-
-  std::vector<uint8_t> to_payload() const
-  {
-    return std::vector<uint8_t>{value};
-  }
-
-  bool operator==(const Bitmask8DatapointValue& other) const
-  {
-    return value == other.value;
-  }
-};
-
-struct Bitmask16DatapointValue {
-  static constexpr UyatDatapointType dp_type = UyatDatapointType::BITMASK16;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::BITMASK;
-  uint16_t value;
-
-  std::string to_string() const
-  {
-    return str_sprintf("%08X", value);
-  }
-
-  std::vector<uint8_t> to_payload() const
-  {
-    const auto converted = convert_big_endian(value);
-    return std::vector<uint8_t>{
-      static_cast<uint8_t>(converted >> 8),
-      static_cast<uint8_t>(converted >> 0),
-    };
-  }
-
-  bool operator==(const Bitmask16DatapointValue& other) const
-  {
-    return value == other.value;
-  }
-};
-
-struct Bitmask32DatapointValue {
-  static constexpr UyatDatapointType dp_type = UyatDatapointType::BITMASK32;
-  static constexpr UyatDatapointTypeInternal internal_dp_type = UyatDatapointTypeInternal::BITMASK;
+struct BitmapDatapointValue {
+  static constexpr UyatDatapointType dp_type = UyatDatapointType::BITMAP;
   uint32_t value;
 
   std::string to_string() const
@@ -251,16 +184,35 @@ struct Bitmask32DatapointValue {
 
   std::vector<uint8_t> to_payload() const
   {
-    const auto converted = convert_big_endian(value);
-    return std::vector<uint8_t>{
-      static_cast<uint8_t>(converted >> 24),
-      static_cast<uint8_t>(converted >> 16),
-      static_cast<uint8_t>(converted >> 8),
-      static_cast<uint8_t>(converted >> 0),
-    };
+    // choose size based on highest set bit
+    if (value <= 0xFFu)
+    {
+      return std::vector<uint8_t>{
+        static_cast<uint8_t>(value),
+      };
+    }
+    else if (value <= 0xFFFFu)
+    {
+      const auto converted = convert_big_endian(static_cast<uint16_t>(value));
+      return std::vector<uint8_t>{
+        static_cast<uint8_t>(converted >> 8),
+        static_cast<uint8_t>(converted >> 0),
+      };
+    }
+    else if (value <= 0xFFFFFFFFu)
+    {
+      const auto converted = convert_big_endian(static_cast<uint32_t>(value));
+      return std::vector<uint8_t>{
+        static_cast<uint8_t>(converted >> 24),
+        static_cast<uint8_t>(converted >> 16),
+        static_cast<uint8_t>(converted >> 8),
+        static_cast<uint8_t>(converted >> 0),
+      };
+    }
+    return {};
   }
 
-  bool operator==(const Bitmask32DatapointValue& other) const
+  bool operator==(const BitmapDatapointValue& other) const
   {
     return value == other.value;
   }
@@ -271,9 +223,7 @@ using AnyDatapointValue = std::variant<RawDatapointValue,
                                        UIntDatapointValue,
                                        StringDatapointValue,
                                        EnumDatapointValue,
-                                       Bitmask8DatapointValue,
-                                       Bitmask16DatapointValue,
-                                       Bitmask32DatapointValue>;
+                                       BitmapDatapointValue>;
 
 struct UyatDatapoint {
   uint8_t number;
@@ -291,7 +241,7 @@ struct UyatDatapoint {
       return false;
     }
 
-    return (other.get_internal_type() == get_internal_type());
+    return (other.get_type() == get_type());
   }
 
   bool matches(const MatchingDatapoint& matching) const
@@ -308,14 +258,6 @@ struct UyatDatapoint {
   {
     return std::visit([](const auto& dp){
       return std::decay_t<decltype(dp)>::dp_type;
-    },
-    value);
-  }
-
-  constexpr UyatDatapointTypeInternal get_internal_type() const
-  {
-    return std::visit([](const auto& dp){
-      return std::decay_t<decltype(dp)>::internal_dp_type;
     },
     value);
   }
@@ -365,11 +307,11 @@ struct UyatDatapoint {
     const uint8_t *payload = &raw_data[4u];
 
     used_len = payload_size + 4u;
-    if (raw_data[1] == UyatDatapointTypeInternal::RAW)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::RAW))
     {
       return UyatDatapoint{raw_data[0], RawDatapointValue{std::vector<uint8_t>{payload, &payload[payload_size]}}};
     }
-    if (raw_data[1] == UyatDatapointTypeInternal::BOOLEAN)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::BOOLEAN))
     {
       if (payload_size != 1u)
       {
@@ -377,7 +319,7 @@ struct UyatDatapoint {
       }
       return UyatDatapoint{raw_data[0], BoolDatapointValue{payload[0] != 0x00}};
     }
-    if (raw_data[1] == UyatDatapointTypeInternal::INTEGER)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::INTEGER))
     {
       if (payload_size != 4u)
       {
@@ -385,11 +327,11 @@ struct UyatDatapoint {
       }
       return UyatDatapoint{raw_data[0], UIntDatapointValue{encode_uint32(payload[0], payload[1], payload[2], payload[3])}};
     }
-    if (raw_data[1] == UyatDatapointTypeInternal::STRING)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::STRING))
     {
       return UyatDatapoint{raw_data[0], StringDatapointValue{std::string(reinterpret_cast<const char *>(payload), reinterpret_cast<const char *>(&payload[payload_size]))}};
     }
-    if (raw_data[1] == UyatDatapointTypeInternal::ENUM)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::ENUM))
     {
       if (payload_size != 1u)
       {
@@ -397,19 +339,19 @@ struct UyatDatapoint {
       }
       return UyatDatapoint{raw_data[0], EnumDatapointValue{payload[0]}};
     }
-    if (raw_data[1] == UyatDatapointTypeInternal::BITMASK)
+    if (raw_data[1] == static_cast<uint8_t>(UyatDatapointType::BITMAP))
     {
       if (payload_size == 1u)
       {
-        return UyatDatapoint{raw_data[0], Bitmask8DatapointValue{payload[0]}};
+        return UyatDatapoint{raw_data[0], BitmapDatapointValue{payload[0]}};
       }
       if (payload_size == 2u)
       {
-        return UyatDatapoint{raw_data[0], Bitmask16DatapointValue{encode_uint16(payload[0], payload[1])}};
+        return UyatDatapoint{raw_data[0], BitmapDatapointValue{encode_uint16(payload[0], payload[1])}};
       }
       if (payload_size == 4u)
       {
-        return UyatDatapoint{raw_data[0], Bitmask32DatapointValue{encode_uint32(payload[0], payload[1], payload[2], payload[3])}};
+        return UyatDatapoint{raw_data[0], BitmapDatapointValue{encode_uint32(payload[0], payload[1], payload[2], payload[3])}};
       }
     }
 

@@ -139,9 +139,6 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value){
     set_datapoint_value(UyatDatapoint{datapoint_id, EnumDatapointValue{value}}, false);
   }
-  void set_bitmask32_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length){
-    set_datapoint_value(UyatDatapoint{datapoint_id, Bitmask32DatapointValue{value}}, false);
-  }
   void force_set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value){
     set_datapoint_value(UyatDatapoint{datapoint_id, RawDatapointValue{value}}, true);
   }
@@ -157,10 +154,6 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void force_set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value){
     set_datapoint_value(UyatDatapoint{datapoint_id, EnumDatapointValue{value}}, true);
   }
-  void force_set_bitmask32_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length){
-    set_datapoint_value(UyatDatapoint{datapoint_id, Bitmask32DatapointValue{value}}, true);
-  }
-
 
  protected:
   void handle_input_buffer_();
@@ -175,7 +168,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void send_command_(const UyatCommand &command);
   void send_empty_command_(UyatCommandType command);
   void set_datapoint_value_(const UyatDatapoint& dp, const bool force = false);
-  void send_datapoint_command_(uint8_t datapoint_id, UyatDatapointTypeInternal datapoint_type, std::vector<uint8_t> data);
+  void send_datapoint_command_(uint8_t datapoint_id, UyatDatapointType datapoint_type, std::vector<uint8_t> data);
   void set_status_pin_();
   void send_wifi_status_(const uint8_t status);
   uint8_t get_wifi_rssi_();
