@@ -17,7 +17,7 @@ class UyatBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint sensor_dp, const uint8_t bit_number = 0){
+  void configure(MatchingDatapoint sensor_dp, const std::optional<uint8_t> bit_number = std::nullopt){
     this->dp_binary_sensor_.emplace([this](const bool value){this->on_value(value);},
                              std::move(sensor_dp),
                              bit_number,

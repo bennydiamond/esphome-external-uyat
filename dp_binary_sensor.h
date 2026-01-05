@@ -31,7 +31,7 @@ struct DpBinarySensor
                this->matching_dp_.types = {UyatDatapointType::BOOLEAN};
                ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
             }
-            value_ = inverted_? (!dp_value->value) : dp_value->value;
+            this->value_ = apply_filters_(dp_value->value);
             callback_(value_.value());
          }
          else
@@ -42,7 +42,7 @@ struct DpBinarySensor
                this->matching_dp_.types = {UyatDatapointType::INTEGER};
                ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
             }
-            value_ = inverted_? (dp_value->value == 0) : (dp_value->value != 0);
+            this->value_ = apply_filters_(dp_value->value);
             callback_(value_.value());
          }
          else
@@ -53,7 +53,7 @@ struct DpBinarySensor
                this->matching_dp_.types = {UyatDatapointType::ENUM};
                ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
             }
-            value_ = inverted_? (dp_value->value == 0) : (dp_value->value != 0);
+            this->value_ = apply_filters_(dp_value->value);
             callback_(value_.value());
          }
          else
@@ -65,16 +65,7 @@ struct DpBinarySensor
                ESP_LOGI(DpBinarySensor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
             }
 
-            if (bit_number_ >= 32)
-            {
-               value_ = false;
-            }
-            else
-            {
-               const bool bit_value = (dp_value->value & (1<<bit_number_))!=0;
-               value_ = inverted_? (!bit_value) : bit_value;
-            }
-
+            this->value_ = apply_filters_(dp_value->value);
             callback_(value_.value());
          }
       });
@@ -90,13 +81,13 @@ struct DpBinarySensor
       return str_sprintf("%s%s%s",
          this->inverted_? "Inverted " : "",
          this->matching_dp_.to_string().c_str(),
-         this->matching_dp_.matches(UyatDatapointType::BITMAP)? str_sprintf(", bit %u", this->bit_number_).c_str() : ""  );
+         this->bit_number_? str_sprintf(", bit %u", this->bit_number_.value()).c_str() : ", whole"  );
    }
 
    DpBinarySensor(DpBinarySensor&&) = default;
    DpBinarySensor& operator=(DpBinarySensor&&) = default;
 
-   DpBinarySensor(const OnValueCallback& callback, MatchingDatapoint&& matching_dp, const uint8_t bit_number, const bool inverted):
+   DpBinarySensor(const OnValueCallback& callback, MatchingDatapoint&& matching_dp, const std::optional<uint8_t> bit_number, const bool inverted):
    callback_(callback),
    matching_dp_(std::move(matching_dp)),
    bit_number_(bit_number),
@@ -105,9 +96,27 @@ struct DpBinarySensor
 
 private:
 
+   bool apply_filters_(const uint32_t raw_value) const
+   {
+      bool result;
+      if (this->bit_number_)
+      {
+         if (this->bit_number_.value() >= 32)
+         {
+            return false;
+         }
+         result = (raw_value & (1<<this->bit_number_.value()))!=0;
+      }
+      else
+      {
+         result = raw_value != 0u;
+      }
+      return this->inverted_? (!result) : result;
+   }
+
    OnValueCallback callback_;
    MatchingDatapoint matching_dp_;
-   const uint8_t bit_number_; // only matters for bitmap
+   const std::optional<uint8_t> bit_number_;
    const bool inverted_;
 
    std::optional<bool> value_;

@@ -34,24 +34,6 @@ BINARY_SENSOR_DP_TYPES = [
     DPTYPE_BITMAP,
 ]
 
-def _validate(config):
-    dp_config = config[CONF_DATAPOINT]
-    if not isinstance(dp_config, dict):
-        if CONF_BIT_NUMBER in dp_config:
-            raise cv.Invalid(f"{CONF_BIT_NUMBER} requires setting datapoint type to {DPTYPE_BITMAP}")
-        return config
-
-    dp_type = dp_config.get(CONF_DATAPOINT_TYPE)
-    if dp_type == DPTYPE_BITMAP:
-        if CONF_BIT_NUMBER not in dp_config:
-            raise cv.Invalid(f"{CONF_BIT_NUMBER} is required for datapoint type {DPTYPE_BITMAP}")
-    else:
-        if CONF_BIT_NUMBER in dp_config:
-            raise cv.Invalid(f"{CONF_BIT_NUMBER} requires setting datapoint type to {DPTYPE_BITMAP}")
-
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(UyatBinarySensor)
     .extend(
@@ -64,13 +46,12 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_DETECT): cv.one_of(
                         *BINARY_SENSOR_DP_TYPES, lower=True
                     ),
-                    cv.Optional(CONF_BIT_NUMBER): cv.int_range(min=1, max=32),
                 })
             ),
+            cv.Optional(CONF_BIT_NUMBER): cv.int_range(min=1, max=32),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA),
-    _validate
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
@@ -82,8 +63,8 @@ async def to_code(config):
     cg.add(var.set_uyat_parent(paren))
 
     dp_config = config[CONF_DATAPOINT]
-    bit_number = 0
-    if isinstance(dp_config, dict):
-        if CONF_BIT_NUMBER in dp_config:
-            bit_number = dp_config[CONF_BIT_NUMBER]-1
-    cg.add(var.configure(await matching_datapoint_from_config(dp_config, BINARY_SENSOR_DP_TYPES), bit_number))
+    if CONF_BIT_NUMBER in config:
+        bit_number = config[CONF_BIT_NUMBER]-1
+        cg.add(var.configure(await matching_datapoint_from_config(dp_config, BINARY_SENSOR_DP_TYPES), bit_number))
+    else:
+        cg.add(var.configure(await matching_datapoint_from_config(dp_config, BINARY_SENSOR_DP_TYPES)))
