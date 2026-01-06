@@ -95,7 +95,7 @@ async def matching_datapoint_from_config(dp_config, allowed_types: list):
                 ("types", await translate_dp_types([dp_type]))
             )
     else:
-        if allow_autodetect:
+        if allow_autodetect or len(allowed_types)==1:
             return cg.StructInitializer(
                 MatchingDatapoint,
                 ("number", dp_config),

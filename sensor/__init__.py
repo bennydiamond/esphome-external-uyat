@@ -84,7 +84,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     })
                 ),
                 cv.Required(CONF_VAP_VALUE_TYPE): cv.one_of(
-                    *VAP_VALUE_TYPES, lower=True,
+                    *VAP_VALUE_TYPES.keys(), lower=True,
                 ),
             }
         )
