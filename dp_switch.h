@@ -140,7 +140,7 @@ private:
    Config config_;
    OnValueCallback callback_;
 
-   DatapointHandler* handler_;
+   DatapointHandler* handler_{nullptr};
    std::optional<bool> received_value_;
    std::optional<bool> set_value_;
 };

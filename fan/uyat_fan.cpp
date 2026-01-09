@@ -7,83 +7,17 @@ namespace uyat {
 static const char *const TAG = "uyat.fan";
 
 void UyatFan::setup() {
-  if (this->speed_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->speed_id_, [this](const UyatDatapoint &datapoint) {
-      if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value)) {
-        ESP_LOGV(TAG, "MCU reported speed of: %d", dp_value->value);
-        if (dp_value->value >= this->speed_count_) {
-          ESP_LOGE(TAG, "Speed has invalid value %d", dp_value->value);
-        } else {
-          this->speed = dp_value->value + 1;
-          this->publish_state();
-        }
-      }
-      else
-      if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value)) {
-        ESP_LOGV(TAG, "MCU reported speed of: %d", dp_value->value);
-        this->speed = dp_value->value;
-        this->publish_state();
-      }
-      else
-      {
-        ESP_LOGW(TAG, "Unexpected datapoint %d type (expected INTEGER or ENUM, got %s)!", datapoint.number, datapoint.get_type_name());
-        return;
-      }
-      this->speed_type_ = datapoint.get_type();
-    });
+  if (this->speed_.has_value()) {
+    this->speed_->dp_speed.init(*(this->parent_));
   }
-  if (this->switch_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->switch_id_, [this](const UyatDatapoint &datapoint) {
-      auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value);
-      if (!dp_value)
-      {
-        ESP_LOGW(TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      ESP_LOGV(TAG, "MCU reported switch %u is: %s", this->switch_id_, ONOFF(dp_value->value));
-      this->state = dp_value->value;
-      this->publish_state();
-    });
+  if (this->dp_switch_.has_value()) {
+    this->dp_switch_->init(*(this->parent_));
   }
-  if (this->oscillation_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->oscillation_id_, [this](const UyatDatapoint &datapoint) {
-      // Whether data type is BOOL or ENUM, it will still be a 1 or a 0, so the functions below are valid in both
-      // scenarios
-      if (auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value))
-      {
-        this->oscillating = dp_value->value;
-      }
-      else
-      if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
-      {
-        this->oscillating = (dp_value->value != 0);
-      }
-      else
-      {
-        ESP_LOGW(TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      ESP_LOGV(TAG, "MCU reported oscillation is: %s", ONOFF(this->oscillating));
-      this->publish_state();
-
-      this->oscillation_type_ = datapoint.get_type();
-    });
+  if (this->dp_oscillation_.has_value()) {
+    this->dp_oscillation_->init(*(this->parent_));
   }
-  if (this->direction_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->direction_id_, [this](const UyatDatapoint &datapoint) {
-      auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value);
-      if (!dp_value)
-      {
-        ESP_LOGW(TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      ESP_LOGD(TAG, "MCU reported reverse direction is: %s", ONOFF(dp_value->value));
-      this->direction = dp_value->value ? fan::FanDirection::REVERSE : fan::FanDirection::FORWARD;
-      this->publish_state();
-    });
+  if (this->dp_direction_.has_value()) {
+    this->dp_direction_->init(*(this->parent_));
   }
 
   this->parent_->add_on_initialized_callback([this]() {
@@ -95,47 +29,94 @@ void UyatFan::setup() {
 
 void UyatFan::dump_config() {
   LOG_FAN("", "Uyat Fan", this);
-  if (this->speed_id_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *this->speed_id_);
+  if (this->speed_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Speed is %s, [%u, %u]", this->speed_->dp_speed.get_config().to_string().c_str(), this->speed_->min_value, this->speed_->max_value);
   }
-  if (this->switch_id_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
+  if (this->dp_switch_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Switch is %s", this->dp_switch_->get_config().to_string().c_str());
   }
-  if (this->oscillation_id_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *this->oscillation_id_);
+  if (this->dp_oscillation_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Oscillation is %s", this->dp_oscillation_->get_config().to_string().c_str());
   }
-  if (this->direction_id_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Direction has datapoint ID %u", *this->direction_id_);
+  if (this->dp_direction_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Direction is %s", this->dp_direction_->get_config().to_string().c_str());
   }
 }
 
 fan::FanTraits UyatFan::get_traits() {
-  return fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(), this->direction_id_.has_value(),
-                        this->speed_count_);
+  int speed_count = 0;
+  if (this->speed_)
+  {
+    speed_count = this->speed_->get_number_of_speeds();
+  }
+  return fan::FanTraits(this->dp_oscillation_.has_value(), this->speed_.has_value(), this->dp_direction_.has_value(),
+                        speed_count);
 }
 
 void UyatFan::control(const fan::FanCall &call) {
-  if (this->switch_id_.has_value() && call.get_state().has_value()) {
-    this->parent_->set_boolean_datapoint_value(*this->switch_id_, *call.get_state());
+  if (this->dp_switch_.has_value() && call.get_state().has_value()) {
+    this->dp_switch_->set_value(*call.get_state());
   }
-  if (this->oscillation_id_.has_value() && call.get_oscillating().has_value()) {
-    if (this->oscillation_type_ == UyatDatapointType::ENUM) {
-      this->parent_->set_enum_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
-    } else if (this->oscillation_type_ == UyatDatapointType::BOOLEAN) {
-      this->parent_->set_boolean_datapoint_value(*this->oscillation_id_, *call.get_oscillating());
+  if (this->dp_oscillation_.has_value() && call.get_oscillating().has_value()) {
+    this->dp_oscillation_->set_value(*call.get_oscillating());
+  }
+  if (this->dp_direction_.has_value() && call.get_direction().has_value()) {
+    this->dp_direction_->set_value(*call.get_direction() == fan::FanDirection::FORWARD);
+  }
+  if (this->speed_.has_value() && call.get_speed().has_value()) {
+    auto value_to_set = *call.get_speed() + this->speed_->min_value - 1; // get_speed() returns a 1-based index
+    if (value_to_set > this->speed_->max_value)
+    {
+      value_to_set = this->speed_->max_value;
     }
+    this->speed_->dp_speed.set_value(value_to_set);
   }
-  if (this->direction_id_.has_value() && call.get_direction().has_value()) {
-    bool enable = *call.get_direction() == fan::FanDirection::REVERSE;
-    this->parent_->set_enum_datapoint_value(*this->direction_id_, enable);
+}
+
+void UyatFan::on_switch_value(const bool value)
+{
+  ESP_LOGV(TAG, "MCU reported switch %s is: %s", get_object_id().c_str(), ONOFF(value));
+  this->state = value;
+  this->publish_state();
+}
+
+void UyatFan::on_oscillation_value(const bool value)
+{
+  ESP_LOGV(TAG, "MCU reported oscillation is: %s", ONOFF(value));
+
+  this->oscillating = value;
+  this->publish_state();
+}
+
+void UyatFan::on_direction_value(const bool value)
+{
+  ESP_LOGV(TAG, "MCU reported direction is: %s", ONOFF(value));
+
+  this->direction = value ? fan::FanDirection::FORWARD : fan::FanDirection::REVERSE;
+  this->publish_state();
+}
+
+void UyatFan::on_speed_value(const float value)
+{
+  ESP_LOGV(TAG, "MCU reported speed of: %.0f", value);
+
+  this->speed = 1;
+  if (value < this->speed_->min_value)
+  {
+    ESP_LOGW(TAG, "Value %.0f reported by MCU is out of range [%u, %u]", value, this->speed_->min_value, this->speed_->max_value);
   }
-  if (this->speed_id_.has_value() && call.get_speed().has_value()) {
-    if (this->speed_type_ == UyatDatapointType::ENUM) {
-      this->parent_->set_enum_datapoint_value(*this->speed_id_, *call.get_speed() - 1);
-    } else if (this->speed_type_ == UyatDatapointType::INTEGER) {
-      this->parent_->set_integer_datapoint_value(*this->speed_id_, *call.get_speed());
-    }
+  else
+  if (value > this->speed_->min_value)
+  {
+    ESP_LOGW(TAG, "Value %.0f reported by MCU is out of range [%u, %u]", value, this->speed_->min_value, this->speed_->max_value);
+    this->speed = this->speed_->get_number_of_speeds();
   }
+  else
+  {
+    this->speed = static_cast<int>(value) - this->speed_->min_value + 1;
+  }
+
+  this->publish_state();
 }
 
 }  // namespace uyat
