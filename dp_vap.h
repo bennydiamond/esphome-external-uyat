@@ -22,13 +22,23 @@ struct DpVAP
    };
    using OnValueCallback = std::function<void(const VAPValue&)>;
 
+   struct Config
+   {
+      MatchingDatapoint matching_dp;
+
+      std::string to_string() const
+      {
+         return this->matching_dp.to_string();
+      }
+   };
+
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
-      handler.register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
+      handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpVAP::TAG, "%s processing as VAP", datapoint.to_string().c_str());
 
-         if (!matching_dp_.matches(datapoint.get_type()))
+         if (!this->config_.matching_dp.matches(datapoint.get_type()))
          {
             ESP_LOGW(DpVAP::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
             return;
@@ -59,17 +69,17 @@ struct DpVAP
       return this->received_value_;
    }
 
-   std::string config_to_string() const
+   const Config& get_config() const
    {
-      return this->matching_dp_.to_string();
+      return config_;
    }
 
    DpVAP(DpVAP&&) = default;
    DpVAP& operator=(DpVAP&&) = default;
 
    DpVAP(const OnValueCallback& callback, MatchingDatapoint&& matching_dp):
-   callback_(callback),
-   matching_dp_(std::move(matching_dp))
+   config_{std::move(matching_dp)},
+   callback_(callback)
    {}
 
 private:
@@ -88,8 +98,8 @@ private:
       };
    }
 
+   Config config_;
    OnValueCallback callback_;
-   const MatchingDatapoint matching_dp_;
 
    DatapointHandler* handler_{nullptr};
 

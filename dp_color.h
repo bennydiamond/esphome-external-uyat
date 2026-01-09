@@ -16,13 +16,6 @@ enum class UyatColorType {
 
 struct DpColor
 {
-   struct Value
-   {
-      float r;
-      float g;
-      float b;
-   };
-
    static constexpr const char * TAG = "uyat.DpColor";
 
    static constexpr const char* color_type_to_string(const UyatColorType color_type)
@@ -45,20 +38,38 @@ struct DpColor
       return "UNKNOWN";
    }
 
+   struct Value
+   {
+      float r;
+      float g;
+      float b;
+   };
+
+   struct Config
+   {
+      MatchingDatapoint matching_dp;
+      const UyatColorType color_type;
+
+      std::string to_string() const
+      {
+         return str_sprintf("%s, color_type: %s", matching_dp.to_string().c_str(), DpColor::color_type_to_string(color_type));
+      }
+   };
+
    using Callback = std::function<void(const Value&)>;
+
    DpColor(Callback callback, MatchingDatapoint color_dp, const UyatColorType color_type):
-   callback_(callback),
-   matching_dp_(std::move(color_dp)),
-   color_type_(color_type)
+   config_{std::move(color_dp), color_type},
+   callback_(callback)
    {}
 
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
-      handler.register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
+      handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpColor::TAG, "%s processing as color", datapoint.to_string().c_str());
 
-         if (!matching_dp_.matches(datapoint.get_type()))
+         if (!this->config_.matching_dp.matches(datapoint.get_type()))
          {
             ESP_LOGW(DpColor::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
             return;
@@ -66,10 +77,10 @@ struct DpColor
 
          if (auto * dp_value = std::get_if<StringDatapointValue>(&datapoint.value))
          {
-            if (!this->matching_dp_.allows_single_type())
+            if (!this->config_.matching_dp.allows_single_type())
             {
-               this->matching_dp_.types = {UyatDatapointType::STRING};
-               ESP_LOGI(DpColor::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+               this->config_.matching_dp.types = {UyatDatapointType::STRING};
+               ESP_LOGI(DpColor::TAG, "Resolved %s", this->config_.matching_dp.to_string().c_str());
             }
             auto new_value = this->decode_(dp_value->value);
             if (new_value)
@@ -95,30 +106,30 @@ struct DpColor
       this->last_set_value_ = v;
       if (this->handler_ == nullptr)
       {
-         ESP_LOGE(DpColor::TAG, "DatapointHandler not initialized for %s", this->config_to_string().c_str());
+         ESP_LOGE(DpColor::TAG, "DatapointHandler not initialized for %s", this->config_.to_string().c_str());
          return;
       }
 
-      if (this->color_type_ == UyatColorType::RGB)
+      if (this->config_.color_type == UyatColorType::RGB)
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-                                       this->matching_dp_.number,
+                                       this->config_.matching_dp.number,
                                        StringDatapointValue{to_raw_rgb(v)}
                                        });
       }
       else
-      if (this->color_type_ == UyatColorType::HSV)
+      if (this->config_.color_type == UyatColorType::HSV)
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-                                       this->matching_dp_.number,
+                                       this->config_.matching_dp.number,
                                        StringDatapointValue{to_raw_hsv(v)}
                                        });
       }
       else
-      if (this->color_type_ == UyatColorType::RGBHSV)
+      if (this->config_.color_type == UyatColorType::RGBHSV)
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-                                       this->matching_dp_.number,
+                                       this->config_.matching_dp.number,
                                        StringDatapointValue{to_raw_rgbhsv(v)}
                                        });
       }
@@ -134,9 +145,9 @@ struct DpColor
       return last_received_value_;
    }
 
-   std::string config_to_string() const
+   const Config& get_config() const
    {
-      return str_sprintf("%s, color_type: %s", this->matching_dp_.to_string().c_str(), color_type_to_string(color_type_));
+      return config_;
    }
 
 private:
@@ -171,17 +182,17 @@ private:
 
    std::optional<Value> decode_(const std::string& raw_value) const
    {
-      if (this->color_type_ == UyatColorType::RGB)
+      if (this->config_.color_type == UyatColorType::RGB)
       {
          return decode_as_rgb_(raw_value);
       }
       else
-      if (this->color_type_ == UyatColorType::HSV)
+      if (this->config_.color_type == UyatColorType::HSV)
       {
          return decode_as_hsv_(raw_value);
       }
       else
-      if (this->color_type_ == UyatColorType::RGBHSV)
+      if (this->config_.color_type == UyatColorType::RGBHSV)
       {
          return decode_as_rgbhsv_(raw_value);
       }
@@ -222,9 +233,8 @@ private:
       return decode_as_rgb_(raw_value);
    }
 
+   Config config_;
    Callback callback_;
-   MatchingDatapoint matching_dp_;
-   UyatColorType color_type_;
 
    DatapointHandler* handler_{nullptr};
    std::optional<Value> last_received_value_;

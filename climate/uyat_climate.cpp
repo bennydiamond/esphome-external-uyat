@@ -379,24 +379,24 @@ climate::ClimateTraits UyatClimate::traits() {
 void UyatClimate::dump_config() {
   LOG_CLIMATE("", "Uyat Climate", this);
   if (this->dp_switch_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Switch is %s", this->dp_switch_->config_to_string().c_str());
+    ESP_LOGCONFIG(TAG, "  Switch is %s", this->dp_switch_->get_config().to_string().c_str());
   }
   if (this->active_state_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Active state is %s", this->active_state_id_->to_string().c_str());
   }
   if (this->dp_target_temperature_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Target Temperature is %s", this->dp_target_temperature_->config_to_string().c_str());
+    ESP_LOGCONFIG(TAG, "  Target Temperature is %s", this->dp_target_temperature_->get_config().to_string().c_str());
   }
   if (this->dp_current_temperature_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Current Temperature is %s", this->dp_current_temperature_->config_to_string().c_str());
+    ESP_LOGCONFIG(TAG, "  Current Temperature is %s", this->dp_current_temperature_->get_config().to_string().c_str());
   }
   LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
   LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
   if (this->dp_eco_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Eco is %s", this->dp_eco_->config_to_string().c_str());
+    ESP_LOGCONFIG(TAG, "  Eco is %s", this->dp_eco_->get_config().to_string().c_str());
   }
   if (this->dp_sleep_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Sleep is %s", this->dp_sleep_->config_to_string().c_str());
+    ESP_LOGCONFIG(TAG, "  Sleep is %s", this->dp_sleep_->get_config().to_string().c_str());
   }
   if (this->swing_vertical_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Swing Vertical is %s", this->swing_vertical_id_->to_string().c_str());

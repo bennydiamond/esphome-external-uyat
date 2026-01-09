@@ -14,7 +14,7 @@ void UyatSensor::setup() {
 
 void UyatSensor::dump_config() {
   LOG_SENSOR("", "Uyat Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Sensor %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  Sensor %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->get_config().to_string().c_str() : "misconfigured!");
 }
 
 void UyatSensor::on_value(const float value)

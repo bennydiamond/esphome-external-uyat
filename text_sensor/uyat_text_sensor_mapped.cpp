@@ -15,7 +15,7 @@ void UyatTextSensorMapped::setup() {
 
 void UyatTextSensorMapped::dump_config() {
   ESP_LOGCONFIG(TAG, "Uyat Mapped Text Sensor:");
-  ESP_LOGCONFIG(TAG, "  Text Sensor %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  Text Sensor %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->get_config().to_string().c_str() : "misconfigured!");
   ESP_LOGCONFIG(TAG, "  Options are:");
   for (const auto& item: this->mappings_) {
     ESP_LOGCONFIG(TAG, "    %u: %s", item.first, item.second.c_str());

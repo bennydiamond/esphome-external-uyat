@@ -14,7 +14,7 @@ void UyatSensorVAP::setup() {
 
 void UyatSensorVAP::dump_config() {
   LOG_SENSOR("", "Uyat VAP Sensor", this);
-  ESP_LOGCONFIG(TAG, "  VAP Sensor %s is %s", get_object_id().c_str(), this->dp_vap_? this->dp_vap_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  VAP Sensor %s is %s", get_object_id().c_str(), this->dp_vap_? this->dp_vap_->get_config().to_string().c_str() : "misconfigured!");
 }
 
 void UyatSensorVAP::on_value(const DpVAP::VAPValue& value)

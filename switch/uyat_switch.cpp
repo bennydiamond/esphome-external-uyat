@@ -22,7 +22,7 @@ void UyatSwitch::write_state(bool state) {
 
 void UyatSwitch::dump_config() {
   LOG_SWITCH("", "Uyat Switch", this);
-  ESP_LOGCONFIG(TAG, "  Switch %s is %s", get_object_id().c_str(), this->dp_switch_? this->dp_switch_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  Switch %s is %s", get_object_id().c_str(), this->dp_switch_? this->dp_switch_->get_config().to_string().c_str() : "misconfigured!");
 }
 
 void UyatSwitch::on_value(const bool value)

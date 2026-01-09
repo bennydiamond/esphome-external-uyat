@@ -20,12 +20,10 @@ from .. import CONF_UYAT_ID, CONF_DATAPOINT, CONF_DATAPOINT_TYPE, Uyat, uyat_ns,
 DEPENDENCIES = ["uyat"]
 
 CONF_MIN_VALUE_DATAPOINT = "min_value_datapoint"
-CONF_COLOR_TEMPERATURE_DATAPOINT = "color_temperature_datapoint"
-CONF_COLOR_TEMPERATURE_INVERT = "color_temperature_invert"
-CONF_COLOR_TEMPERATURE_MAX_VALUE = "color_temperature_max_value"
 CONF_SWITCH = "switch"
 CONF_DIMMER = "dimmer"
 CONF_COLOR = "color"
+CONF_WHITE_TEMPERATURE = "white_temperature"
 
 UyatColorType = uyat_ns.enum("UyatColorType", is_class=True)
 
@@ -56,6 +54,12 @@ SWITCH_DP_TYPES = {
 
 COLOR_DP_TYPES = {
     DPTYPE_STRING
+}
+
+WHITE_TEMPERATURE_DP_TYPES = {
+    DPTYPE_DETECT,
+    DPTYPE_UINT,
+    DPTYPE_ENUM
 }
 
 
@@ -116,6 +120,25 @@ COLOR_CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+WHITE_TEMPERATURE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DATAPOINT): cv.Any(cv.uint8_t,
+            cv.Schema(
+            {
+                cv.Required(CONF_NUMBER): cv.uint8_t,
+                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_DETECT): cv.one_of(
+                    *WHITE_TEMPERATURE_DP_TYPES, lower=True
+                )
+            })
+        ),
+        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
+        cv.Optional(CONF_MAX_VALUE, default=255): cv.int_,
+        cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
         {
@@ -125,17 +148,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
             cv.Optional(CONF_COLOR): COLOR_CONFIG_SCHEMA,
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
-            cv.Inclusive(
-                CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
-            ): cv.uint8_t,
-            cv.Optional(CONF_COLOR_TEMPERATURE_INVERT, default=False): cv.boolean,
-            cv.Optional(CONF_COLOR_TEMPERATURE_MAX_VALUE): cv.int_,
-            cv.Inclusive(
-                CONF_COLD_WHITE_COLOR_TEMPERATURE, "color_temperature"
-            ): cv.color_temperature,
-            cv.Inclusive(
-                CONF_WARM_WHITE_COLOR_TEMPERATURE, "color_temperature"
-            ): cv.color_temperature,
+            cv.Optional(CONF_WHITE_TEMPERATURE): WHITE_TEMPERATURE_SCHEMA,
             # Change the default gamma_correct and default transition length settings.
             # The Uyat MCU handles transitions and gamma correction on its own.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
@@ -176,22 +189,15 @@ async def to_code(config):
     if CONF_COLOR in config:
         color_config = config[CONF_COLOR]
         cg.add(var.configure_color(await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES), color_config[CONF_TYPE]))
-    if CONF_COLOR_TEMPERATURE_DATAPOINT in config:
-        cg.add(var.set_color_temperature_id(config[CONF_COLOR_TEMPERATURE_DATAPOINT]))
-        cg.add(var.set_color_temperature_invert(config[CONF_COLOR_TEMPERATURE_INVERT]))
-
-        cg.add(
-            var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE])
-        )
-        cg.add(
-            var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
-        )
-    if CONF_COLOR_TEMPERATURE_MAX_VALUE in config:
-        cg.add(
-            var.set_color_temperature_max_value(
-                config[CONF_COLOR_TEMPERATURE_MAX_VALUE]
-            )
-        )
+    if CONF_WHITE_TEMPERATURE in config:
+        white_temperature_config = config[CONF_WHITE_TEMPERATURE]
+        cg.add(var.configure_white_temperature(await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES),
+                                               white_temperature_config[CONF_MIN_VALUE],
+                                               white_temperature_config[CONF_MAX_VALUE],
+                                               white_temperature_config[CONF_INVERTED],
+                                               white_temperature_config[CONF_COLD_WHITE_COLOR_TEMPERATURE],
+                                               white_temperature_config[CONF_WARM_WHITE_COLOR_TEMPERATURE]
+                                              ))
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
     paren = await cg.get_variable(config[CONF_UYAT_ID])

@@ -13,13 +13,25 @@ struct DpNumber
 
    using OnValueCallback = std::function<void(const float)>;
 
+   struct Config
+   {
+      MatchingDatapoint matching_dp;
+      const float offset;
+      const float multiplier;
+
+      std::string to_string() const
+      {
+         return str_sprintf("%s, offset=%.2f, multiplier=%.2f", matching_dp.to_string().c_str(), offset, multiplier);
+      }
+   };
+
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
-      handler.register_datapoint_listener(this->matching_dp_, [this](const UyatDatapoint &datapoint) {
+      handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpNumber::TAG, "%s processing as sensor", datapoint.to_string().c_str());
 
-         if (!matching_dp_.matches(datapoint.get_type()))
+         if (!this->config_.matching_dp.matches(datapoint.get_type()))
          {
             ESP_LOGW(DpNumber::TAG, "Non-matching datapoint type %s!", datapoint.get_type_name());
             return;
@@ -27,46 +39,46 @@ struct DpNumber
 
          if (auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value))
          {
-            if (!this->matching_dp_.allows_single_type())
+            if (!this->config_.matching_dp.allows_single_type())
             {
-               this->matching_dp_.types = {UyatDatapointType::BOOLEAN};
-               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+               this->config_.matching_dp.types = {UyatDatapointType::BOOLEAN};
+               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->config_.matching_dp.to_string().c_str());
             }
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
+            this->last_received_value_ = calculate_logical_value(dp_value->value);
+            callback_(last_received_value_.value());
          }
          else
          if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value))
          {
-            if (!this->matching_dp_.allows_single_type())
+            if (!this->config_.matching_dp.allows_single_type())
             {
-               this->matching_dp_.types = {UyatDatapointType::INTEGER};
-               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+               this->config_.matching_dp.types = {UyatDatapointType::INTEGER};
+               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->config_.matching_dp.to_string().c_str());
             }
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
+            this->last_received_value_ = calculate_logical_value(dp_value->value);
+            callback_(last_received_value_.value());
          }
          else
          if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
          {
-            if (!this->matching_dp_.allows_single_type())
+            if (!this->config_.matching_dp.allows_single_type())
             {
-               this->matching_dp_.types = {UyatDatapointType::ENUM};
-               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+               this->config_.matching_dp.types = {UyatDatapointType::ENUM};
+               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->config_.matching_dp.to_string().c_str());
             }
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
+            this->last_received_value_ = calculate_logical_value(dp_value->value);
+            callback_(last_received_value_.value());
          }
          else
          if (auto * dp_value = std::get_if<BitmapDatapointValue>(&datapoint.value))
          {
-            if (!this->matching_dp_.allows_single_type())
+            if (!this->config_.matching_dp.allows_single_type())
             {
-               this->matching_dp_.types = {UyatDatapointType::BITMAP};
-               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->matching_dp_.to_string().c_str());
+               this->config_.matching_dp.types = {UyatDatapointType::BITMAP};
+               ESP_LOGI(DpNumber::TAG, "Resolved %s", this->config_.matching_dp.to_string().c_str());
             }
-            this->received_value_ = calculate_logical_value(dp_value->value);
-            callback_(received_value_.value());
+            this->last_received_value_ = calculate_logical_value(dp_value->value);
+            callback_(last_received_value_.value());
          }
          else
          {
@@ -78,91 +90,92 @@ struct DpNumber
 
    std::optional<float> get_last_received_value() const
    {
-      return this->received_value_;
+      return this->last_received_value_;
+   }
+
+   std::optional<float> get_last_set_value() const
+   {
+      return this->last_received_value_;
+   }
+
+   const Config& get_config() const
+   {
+      return config_;
    }
 
    void set_value(const float value)
    {
       if (this->handler_ == nullptr)
       {
-         ESP_LOGE(DpNumber::TAG, "DatapointHandler not initialized for %s", this->config_to_string().c_str());
+         ESP_LOGE(DpNumber::TAG, "DatapointHandler not initialized for %s", this->config_.to_string().c_str());
          return;
       }
 
       ESP_LOGV(DpNumber::TAG, "Setting value to %.3f for %s", value, this->config_to_string().c_str());
-      this->set_value_ = value;
-      uint32_t raw_value = static_cast<uint32_t>(lround((value - this->offset_)* this->multiplier_));
-      if (!this->matching_dp_.allows_single_type())
+      this->last_set_value_ = value;
+      uint32_t raw_value = static_cast<uint32_t>(lround((value - this->config_.offset)* this->config_.multiplier));
+      if (!this->config_.matching_dp.allows_single_type())
       {
-         ESP_LOGW(DpNumber::TAG, "Cannot set value, datapoint type not yet known for %s", this->matching_dp_.to_string().c_str());
+         ESP_LOGW(DpNumber::TAG, "Cannot set value, datapoint type not yet known for %s", this->config_.matching_dp.to_string().c_str());
       }
       else
-      if (this->matching_dp_.matches(UyatDatapointType::BITMAP))
+      if (this->config_.matching_dp.matches(UyatDatapointType::BITMAP))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-            this->matching_dp_.number,
+            this->config_.matching_dp.number,
             BitmapDatapointValue{raw_value}
          });
       }
       else
-      if (this->matching_dp_.matches(UyatDatapointType::BOOLEAN))
+      if (this->config_.matching_dp.matches(UyatDatapointType::BOOLEAN))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-            this->matching_dp_.number,
+            this->config_.matching_dp.number,
             BoolDatapointValue{raw_value != 0u}
          });
       }
-      else if (this->matching_dp_.matches(UyatDatapointType::INTEGER))
+      else if (this->config_.matching_dp.matches(UyatDatapointType::INTEGER))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-            this->matching_dp_.number,
+            this->config_.matching_dp.number,
             UIntDatapointValue{raw_value}
          });
       }
-      else if (this->matching_dp_.matches(UyatDatapointType::ENUM))
+      else if (this->config_.matching_dp.matches(UyatDatapointType::ENUM))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
-            this->matching_dp_.number,
+            this->config_.matching_dp.number,
             EnumDatapointValue{static_cast<uint8_t>(raw_value)}
          });
       }
       else
       {
-         ESP_LOGW(DpNumber::TAG, "Unhandled datapoint type %s!", this->matching_dp_.to_string().c_str());
+         ESP_LOGW(DpNumber::TAG, "Unhandled datapoint type %s!", this->config_.matching_dp.to_string().c_str());
       }
-   }
-
-   std::string config_to_string() const
-   {
-      return str_sprintf("%s, offset=%.2f, multiplier=%.2f", this->matching_dp_.to_string().c_str(), this->offset_, this->multiplier_);
    }
 
    DpNumber(DpNumber&&) = default;
    DpNumber& operator=(DpNumber&&) = default;
 
    DpNumber(const OnValueCallback& callback, MatchingDatapoint&& matching_dp, const float offset, const float multiplier):
-   callback_(callback),
-   matching_dp_(std::move(matching_dp)),
-   offset_(offset),
-   multiplier_(multiplier)
+   config_{std::move(matching_dp), offset, multiplier},
+   callback_(callback)
    {}
 
 private:
 
    float calculate_logical_value(const uint32_t value) const
    {
-      return (float(value) / this->multiplier_) + this->offset_;
+      return (float(value) / this->config_.multiplier) + this->config_.offset;
    }
 
+   Config config_;
    OnValueCallback callback_;
-   MatchingDatapoint matching_dp_;
-   const float offset_;
-   const float multiplier_;
 
    DatapointHandler* handler_{nullptr};
 
-   std::optional<float> received_value_;
-   std::optional<float> set_value_;
+   std::optional<float> last_received_value_;
+   std::optional<float> last_set_value_;
 };
 
 }

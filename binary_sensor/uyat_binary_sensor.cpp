@@ -18,7 +18,7 @@ void UyatBinarySensor::setup() {
 
 void UyatBinarySensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Uyat Binary Sensor:");
-  ESP_LOGCONFIG(TAG, "  Binary Sensor %s is %s", get_object_id().c_str(), this->dp_binary_sensor_? this->dp_binary_sensor_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  Binary Sensor %s is %s", get_object_id().c_str(), this->dp_binary_sensor_? this->dp_binary_sensor_->get_config().to_string().c_str() : "misconfigured!");
 }
 
 void UyatBinarySensor::on_value(const bool value)

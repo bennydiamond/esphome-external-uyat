@@ -48,7 +48,7 @@ std::string UyatSelect::get_object_id() const
 
 void UyatSelect::dump_config() {
   LOG_SELECT("", "Uyat Select", this);
-  ESP_LOGCONFIG(TAG, "  Select %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->config_to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(TAG, "  Select %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->get_config().to_string().c_str() : "misconfigured!");
   ESP_LOGCONFIG(TAG, "  Options are:");
   const auto &options = this->traits.get_options();
   for (size_t i = 0; i < this->mappings_.size(); i++) {
