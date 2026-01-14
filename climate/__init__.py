@@ -42,7 +42,7 @@ CONF_HEATING_STATE_PIN = "heating"
 CONF_COOLING_STATE_PIN = "cooling"
 CONF_TARGET_TEMPERATURE = "target_temperature"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
-CONF_ACTIVE_STATE_PINS = "pins"
+CONF_ACTIVE_STATE_PINS = "active_state_pins"
 CONF_ECO = "eco"
 CONF_SLEEP = "sleep"
 CONF_SLEEP_DATAPOINT = "sleep_datapoint"
@@ -308,10 +308,9 @@ async def to_code(config):
 
     if active_state_config := config.get(CONF_ACTIVE_STATE_DATAPOINT):
         if active_state_dp_config := active_state_config.get(CONF_DATAPOINT):
-            cg.add(var.set_active_state_id())
             if (heating_value_mapping := active_state_config.get(CONF_HEATING_VALUE)) is None:
                 # never set to None, default is 1
-                heating_value_mapping = cg.uint32_t(1)
+                heating_value_mapping = cg.uint32(1)
 
             if (cooling_value_mapping := active_state_config.get(CONF_COOLING_VALUE)) is None:
                 cooling_value_mapping = cg.RawExpression("{}")

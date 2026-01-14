@@ -51,8 +51,8 @@ class UyatClimate : public climate::Climate, public Component {
                               value_mapping
                             });
   }
-  void set_heating_state_pin(GPIOPin *pin) { this->heating_state_pin_ = pin; }
-  void set_cooling_state_pin(GPIOPin *pin) { this->cooling_state_pin_ = pin; }
+  void set_heating_state_pin(GPIOPin *pin) { this->active_state_pins_.heating = pin; }
+  void set_cooling_state_pin(GPIOPin *pin) { this->active_state_pins_.cooling = pin; }
   void set_swing_vertical_id(const MatchingDatapoint& swing_vertical_id) { this->swing_vertical_id_ = swing_vertical_id; }
   void set_swing_horizontal_id(const MatchingDatapoint& swing_horizontal_id) { this->swing_horizontal_id_ = swing_horizontal_id; }
   void set_fan_speed_id(const MatchingDatapoint& fan_speed_id) { this->fan_speed_id_ = fan_speed_id; }
@@ -99,6 +99,15 @@ class UyatClimate : public climate::Climate, public Component {
      ActiveStateDpValueMapping mapping;
   };
 
+  struct ActiveStatePins
+  {
+    GPIOPin *heating{nullptr};
+    GPIOPin *cooling{nullptr};
+
+    bool heating_state{false};
+    bool cooling_state{false};
+  };
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -134,8 +143,7 @@ class UyatClimate : public climate::Climate, public Component {
   bool supports_cool_;
   std::optional<DpSwitch> dp_switch_{};
   std::optional<ActiveStateDp> dp_active_state_{};
-  GPIOPin *heating_state_pin_{nullptr};
-  GPIOPin *cooling_state_pin_{nullptr};
+  ActiveStatePins active_state_pins_{};
   std::optional<DpNumber> dp_target_temperature_{};
   std::optional<DpNumber> dp_current_temperature_{};
   float hysteresis_{1.0f};
@@ -154,8 +162,6 @@ class UyatClimate : public climate::Climate, public Component {
   optional<uint8_t> fan_speed_auto_value_{};
   bool swing_vertical_{false};
   bool swing_horizontal_{false};
-  bool heating_state_{false};
-  bool cooling_state_{false};
   float manual_temperature_;
   bool eco_;
   bool sleep_;
