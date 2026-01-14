@@ -95,7 +95,7 @@ struct DpNumber
 
    std::optional<float> get_last_set_value() const
    {
-      return this->last_received_value_;
+      return this->last_set_value_;
    }
 
    const Config& get_config() const

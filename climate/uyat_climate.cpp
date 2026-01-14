@@ -74,7 +74,7 @@ void UyatClimate::on_current_temperature_value(const float value)
 void UyatClimate::on_active_state_value(const float value)
 {
   ESP_LOGV(TAG, "MCU reported active state is: %.0f", value);
-  this->current_active_state_ = static_cast<uint32_t>(value);
+  this->dp_active_state_->dp_number.get_last_received_value() = static_cast<uint32_t>(value);
   this->compute_state_();
   this->publish_state();
 }
@@ -188,14 +188,9 @@ void UyatClimate::control(const climate::ClimateCall &call) {
     const climate::ClimateMode new_mode = *call.get_mode();
 
     if (this->dp_active_state_.has_value()) {
-      if (new_mode == climate::CLIMATE_MODE_HEAT && this->supports_heat_) {
-        this->dp_active_state_->dp_number.set_value(*this->dp_active_state_->mapping.heating_value);
-      } else if (new_mode == climate::CLIMATE_MODE_COOL && this->supports_cool_) {
-        this->dp_active_state_->dp_number.set_value(*this->dp_active_state_->mapping.cooling_value);
-      } else if (new_mode == climate::CLIMATE_MODE_DRY && this->dp_active_state_->mapping.drying_value.has_value()) {
-        this->dp_active_state_->dp_number.set_value(*this->dp_active_state_->mapping.drying_value);
-      } else if (new_mode == climate::CLIMATE_MODE_FAN_ONLY && this->dp_active_state_->mapping.fanonly_value.has_value()) {
-        this->dp_active_state_->dp_number.set_value(*this->dp_active_state_->mapping.fanonly_value);
+      if (!this->dp_active_state_->apply_mode(new_mode))
+      {
+        ESP_LOGW(TAG, "Failed to apply mode %d!", new_mode);
       }
     } else {
       ESP_LOGW(TAG, "Active state (mode) datapoint not configured");
@@ -474,32 +469,29 @@ void UyatClimate::compute_state_() {
       target_action = climate::CLIMATE_ACTION_COOLING;
       this->mode = climate::CLIMATE_MODE_COOL;
     }
+
     if (this->dp_active_state_.has_value()) {
-      // Both are available, use MCU datapoint as mode
-      if (this->supports_heat_ && this->dp_active_state_->mapping.heating_value == this->current_active_state_) {
-        this->mode = climate::CLIMATE_MODE_HEAT;
-      } else if (this->supports_cool_ && this->dp_active_state_->mapping.cooling_value == this->current_active_state_) {
-        this->mode = climate::CLIMATE_MODE_COOL;
-      } else if (this->dp_active_state_->mapping.drying_value == this->current_active_state_) {
-        this->mode = climate::CLIMATE_MODE_DRY;
-      } else if (this->dp_active_state_->mapping.fanonly_value == this->current_active_state_) {
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+      const auto mode_from_dp = this->dp_active_state_->last_value_to_mode();
+      if (mode_from_dp)
+      {
+        this->mode = *mode_from_dp;
       }
     }
   } else if (this->dp_active_state_.has_value()) {
-    // Use state from MCU datapoint
-    if (this->supports_heat_ && this->dp_active_state_->mapping.heating_value == this->current_active_state_) {
-      target_action = climate::CLIMATE_ACTION_HEATING;
-      this->mode = climate::CLIMATE_MODE_HEAT;
-    } else if (this->supports_cool_ && this->dp_active_state_->mapping.cooling_value == this->current_active_state_) {
-      target_action = climate::CLIMATE_ACTION_COOLING;
-      this->mode = climate::CLIMATE_MODE_COOL;
-    } else if (this->dp_active_state_->mapping.drying_value == this->current_active_state_) {
-      target_action = climate::CLIMATE_ACTION_DRYING;
-      this->mode = climate::CLIMATE_MODE_DRY;
-    } else if (this->dp_active_state_->mapping.fanonly_value == this->current_active_state_) {
-      target_action = climate::CLIMATE_ACTION_FAN;
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+    {
+     // Use state & action from MCU datapoint
+      const auto mode_from_dp = this->dp_active_state_->last_value_to_mode();
+      if (mode_from_dp)
+      {
+        this->mode = *mode_from_dp;
+      }
+    }
+    {
+      const auto action_from_dp = this->dp_active_state_->last_value_to_action();
+      if (action_from_dp)
+      {
+        target_action = *action_from_dp;
+      }
     }
   } else {
     // Fallback to active state calc based on temp and hysteresis

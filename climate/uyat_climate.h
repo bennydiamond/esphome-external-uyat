@@ -97,6 +97,109 @@ class UyatClimate : public climate::Climate, public Component {
   {
      DpNumber dp_number;
      ActiveStateDpValueMapping mapping;
+
+     std::optional<climate::ClimateMode> last_value_to_mode() const
+     {
+       const auto last_value = dp_number.get_last_received_value();
+       if (!last_value)
+       {
+         return std::nullopt;
+       }
+
+       if (mapping.heating_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_MODE_HEAT;
+       }
+       if (mapping.cooling_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_MODE_COOL;
+       }
+       if (mapping.drying_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_MODE_DRY;
+       }
+       if (mapping.fanonly_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_MODE_FAN_ONLY;
+       }
+       return std::nullopt;
+     }
+
+     std::optional<climate::ClimateAction> last_value_to_action() const
+     {
+       const auto last_value = dp_number.get_last_received_value();
+       if (!last_value)
+       {
+         return std::nullopt;
+       }
+
+       if (mapping.heating_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_ACTION_HEATING;
+       }
+       if (mapping.cooling_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_ACTION_COOLING;
+       }
+       if (mapping.drying_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_ACTION_DRYING;
+       }
+       if (mapping.fanonly_value == static_cast<uint32_t>(*last_value))
+       {
+         return climate::CLIMATE_ACTION_FAN;
+       }
+       return std::nullopt;
+     }
+
+     bool apply_mode(const climate::ClimateMode new_mode)
+     {
+        switch(new_mode)
+        {
+          case climate::CLIMATE_MODE_HEAT:
+          {
+            if (!mapping.heating_value.has_value())
+            {
+              return false;
+            }
+
+            dp_number.set_value(*mapping.heating_value);
+            return true;
+          }
+          case climate::CLIMATE_MODE_COOL:
+          {
+            if (!mapping.cooling_value.has_value())
+            {
+              return false;
+            }
+
+            dp_number.set_value(*mapping.cooling_value);
+            return true;
+          }
+          case climate::CLIMATE_MODE_DRY:
+          {
+            if (!mapping.drying_value.has_value())
+            {
+              return false;
+            }
+
+            dp_number.set_value(*mapping.drying_value);
+            return true;
+          }
+          case climate::CLIMATE_MODE_FAN_ONLY:
+          {
+            if (!mapping.fanonly_value.has_value())
+            {
+              return false;
+            }
+
+            dp_number.set_value(*mapping.fanonly_value);
+            return true;
+          }
+          default:
+            return false;
+        }
+     }
   };
 
   struct ActiveStatePins
@@ -150,7 +253,6 @@ class UyatClimate : public climate::Climate, public Component {
   std::optional<DpSwitch> dp_eco_{};
   std::optional<DpSwitch> dp_sleep_{};
   optional<float> eco_temperature_{};
-  uint32_t current_active_state_;
   uint8_t fan_state_;
   optional<MatchingDatapoint> swing_vertical_id_{};
   optional<MatchingDatapoint> swing_horizontal_id_{};
