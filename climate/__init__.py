@@ -422,9 +422,9 @@ async def to_code(config):
 
     if swing_mode_config := config.get(CONF_SWING_MODE):
         if vertical_config := swing_mode_config.get(CONF_VERTICAL):
-            cg.add(var.set_swing_vertical_id(await matching_datapoint_from_config(vertical_config, SWING_DP_TYPES)))
+            cg.add(var.configure_vertical_swing(await matching_datapoint_from_config(vertical_config.get(CONF_DATAPOINT), SWING_DP_TYPES), vertical_config.get(CONF_INVERTED)))
         if horizontal_config := swing_mode_config.get(CONF_HORIZONTAL):
-            cg.add(var.set_swing_horizontal_id(await matching_datapoint_from_config(horizontal_config, SWING_DP_TYPES)))
+            cg.add(var.configure_horizontal_swing(await matching_datapoint_from_config(horizontal_config.get(CONF_DATAPOINT), SWING_DP_TYPES), horizontal_config.get(CONF_INVERTED)))
 
     if fan_mode_config := config.get(CONF_FAN_MODE):
         matching_dp = await matching_datapoint_from_config(fan_mode_config.get(CONF_DATAPOINT), FAN_SPEED_DP_TYPES)

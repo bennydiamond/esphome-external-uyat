@@ -45,7 +45,9 @@ class UyatClimate : public climate::Climate, public Component {
   void on_target_temperature_value(const float);
   void on_current_temperature_value(const float);
   void on_active_state_value(const float);
-  void on_fan_speed_value(const float);
+  void on_fan_modes_value(const float);
+  void on_horizontal_swing(const bool);
+  void on_vertical_swing(const bool);
 
  public:
 
@@ -73,14 +75,22 @@ class UyatClimate : public climate::Climate, public Component {
   }
   void set_heating_state_pin(GPIOPin *pin) { this->active_state_pins_.heating = pin; }
   void set_cooling_state_pin(GPIOPin *pin) { this->active_state_pins_.cooling = pin; }
-  void set_swing_vertical_id(const MatchingDatapoint& swing_vertical_id) { this->swing_vertical_id_ = swing_vertical_id; }
-  void set_swing_horizontal_id(const MatchingDatapoint& swing_horizontal_id) { this->swing_horizontal_id_ = swing_horizontal_id; }
+  void configure_horizontal_swing(MatchingDatapoint matching_dp, const bool inverted){
+    this->swing_modes_.dp_horizontal.emplace([this](const bool value){this->on_horizontal_swing(value);},
+                                             std::move(matching_dp),
+                                             inverted);
+  }
+  void configure_vertical_swing(MatchingDatapoint matching_dp, const bool inverted){
+    this->swing_modes_.dp_vertical.emplace([this](const bool value){this->on_vertical_swing(value);},
+                                             std::move(matching_dp),
+                                             inverted);
+  }
 
-  void configure_fan(MatchingDatapoint fan_speed_dp, const FanSpeedDpValueMapping& mapping){
-    this->fan_speed_.emplace(
-      FanSpeed{
-        DpNumber([this](const float value){this->on_fan_speed_value(value); },
-          std::move(fan_speed_dp),
+  void configure_fan(MatchingDatapoint fan_modes_dp, const FanSpeedDpValueMapping& mapping){
+    this->fan_modes_.emplace(
+      FanModes{
+        DpNumber([this](const float value){this->on_fan_modes_value(value); },
+          std::move(fan_modes_dp),
           0.0f, 1.0f),
         mapping
       }
@@ -418,7 +428,7 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
-  struct FanSpeed
+  struct FanModes
   {
     DpNumber dp_number;
     FanSpeedDpValueMapping mapping;
@@ -537,6 +547,126 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
+  struct SwingModes
+  {
+    std::optional<DpSwitch> dp_vertical{};
+    std::optional<DpSwitch> dp_horizontal{};
+
+    void init(DatapointHandler& dp_handler)
+    {
+      if (dp_vertical.has_value()) {
+        dp_vertical->init(dp_handler);
+      }
+
+      if (dp_horizontal.has_value()) {
+        dp_horizontal->init(dp_handler);
+      }
+    }
+
+    std::vector<esphome::climate::ClimateSwingMode> get_supported_swing_modes() const
+    {
+      if (dp_vertical.has_value())
+      {
+        if (dp_horizontal.has_value())
+        {
+          return {climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL};
+        }
+        else
+        {
+          return {climate::CLIMATE_SWING_VERTICAL};
+        }
+      }
+      else
+      {
+        if (dp_horizontal.has_value())
+        {
+          return {climate::CLIMATE_SWING_HORIZONTAL};
+        }
+        else
+        {
+          return {};
+        }
+      }
+    }
+
+    esphome::climate::ClimateSwingMode get_current_swing_mode() const
+    {
+      const bool swing_vertical = dp_vertical.has_value() && dp_vertical->get_last_received_value().value_or(false);
+      const bool swing_horizontal = dp_horizontal.has_value() && dp_horizontal->get_last_received_value().value_or(false);
+
+      if (swing_vertical && swing_horizontal) {
+        return climate::CLIMATE_SWING_BOTH;
+      } else if (swing_vertical) {
+        return climate::CLIMATE_SWING_VERTICAL;
+      } else if (swing_horizontal) {
+        return climate::CLIMATE_SWING_HORIZONTAL;
+      } else {
+        return climate::CLIMATE_SWING_OFF;
+      }
+    }
+
+    bool apply_swing_mode(const esphome::climate::ClimateSwingMode new_mode)
+    {
+      switch(new_mode)
+      {
+        case climate::CLIMATE_SWING_OFF:
+        {
+          if (dp_vertical.has_value())
+          {
+            dp_vertical->set_value(false);
+          }
+          if (dp_horizontal.has_value())
+          {
+            dp_horizontal->set_value(false);
+          }
+
+          return true;
+        }
+        case climate::CLIMATE_SWING_BOTH:
+        {
+          if (dp_vertical.has_value())
+          {
+            dp_vertical->set_value(true);
+          }
+          if (dp_horizontal.has_value())
+          {
+            dp_horizontal->set_value(true);
+          }
+
+          return (dp_vertical.has_value() && dp_horizontal.has_value());
+        }
+        case climate::CLIMATE_SWING_VERTICAL:
+        {
+          if (dp_vertical.has_value())
+          {
+            dp_vertical->set_value(true);
+          }
+          if (dp_horizontal.has_value())
+          {
+            dp_horizontal->set_value(false);
+          }
+
+          return (dp_vertical.has_value());
+        }
+        case climate::CLIMATE_SWING_HORIZONTAL:
+        {
+          if (dp_vertical.has_value())
+          {
+            dp_vertical->set_value(false);
+          }
+          if (dp_horizontal.has_value())
+          {
+            dp_horizontal->set_value(true);
+          }
+
+          return (dp_horizontal.has_value());
+        }
+        default:
+          return false;
+      }
+    }
+  };
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -572,11 +702,8 @@ class UyatClimate : public climate::Climate, public Component {
   ActiveStatePins active_state_pins_{};
   Presets presets_{};
   std::optional<Temperatures> temperatures_{};
-  optional<MatchingDatapoint> swing_vertical_id_{};
-  optional<MatchingDatapoint> swing_horizontal_id_{};
-  std::optional<FanSpeed> fan_speed_{};
-  bool swing_vertical_{false};
-  bool swing_horizontal_{false};
+  std::optional<FanModes> fan_modes_{};
+  SwingModes swing_modes_{};
 };
 
 }  // namespace uyat

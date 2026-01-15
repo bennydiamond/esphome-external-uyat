@@ -75,11 +75,25 @@ void UyatClimate::on_active_state_value(const float value)
   this->publish_state();
 }
 
-void UyatClimate::on_fan_speed_value(const float value)
+void UyatClimate::on_fan_modes_value(const float value)
 {
   ESP_LOGV(UyatClimate::TAG, "MCU reported fan speed is: %.0f", value);
 
   this->compute_fanmode_();
+  this->publish_state();
+}
+
+void UyatClimate::on_horizontal_swing(const bool value)
+{
+  ESP_LOGV(UyatClimate::TAG, "MCU reported horizontal swing is: %s", ONOFF(value));
+  this->compute_swingmode_();
+  this->publish_state();
+}
+
+void UyatClimate::on_vertical_swing(const bool value)
+{
+  ESP_LOGV(UyatClimate::TAG, "MCU reported vertical swing is: %s", ONOFF(value));
+  this->compute_swingmode_();
   this->publish_state();
 }
 
@@ -107,41 +121,10 @@ void UyatClimate::setup() {
   }
 
   this->presets_.init(*(this->parent_));
+  this->swing_modes_.init(*(this->parent_));
 
-  if (this->swing_vertical_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->swing_vertical_id_, [this](const UyatDatapoint &datapoint) {
-      auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value);
-      if (!dp_value)
-      {
-        ESP_LOGW(UyatClimate::TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      this->swing_vertical_ = dp_value->value;
-      ESP_LOGV(UyatClimate::TAG, "MCU reported vertical swing is: %s", ONOFF(dp_value->value));
-      this->compute_swingmode_();
-      this->publish_state();
-    });
-  }
-
-  if (this->swing_horizontal_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->swing_horizontal_id_, [this](const UyatDatapoint &datapoint) {
-      auto * dp_value = std::get_if<BoolDatapointValue>(&datapoint.value);
-      if (!dp_value)
-      {
-        ESP_LOGW(UyatClimate::TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      this->swing_horizontal_ = dp_value->value;
-      ESP_LOGV(UyatClimate::TAG, "MCU reported horizontal swing is: %s", ONOFF(dp_value->value));
-      this->compute_swingmode_();
-      this->publish_state();
-    });
-  }
-
-  if (this->fan_speed_.has_value()) {
-    this->fan_speed_->dp_number.init(*(this->parent_));
+  if (this->fan_modes_.has_value()) {
+    this->fan_modes_->dp_number.init(*(this->parent_));
   }
 }
 
@@ -203,62 +186,9 @@ void UyatClimate::control(const climate::ClimateCall &call) {
 }
 
 void UyatClimate::control_swing_mode_(const climate::ClimateCall &call) {
-  bool vertical_swing_changed = false;
-  bool horizontal_swing_changed = false;
 
   if (call.get_swing_mode().has_value()) {
-    const auto swing_mode = *call.get_swing_mode();
-
-    switch (swing_mode) {
-      case climate::CLIMATE_SWING_OFF:
-        if (swing_vertical_ || swing_horizontal_) {
-          this->swing_vertical_ = false;
-          this->swing_horizontal_ = false;
-          vertical_swing_changed = true;
-          horizontal_swing_changed = true;
-        }
-        break;
-
-      case climate::CLIMATE_SWING_BOTH:
-        if (!swing_vertical_ || !swing_horizontal_) {
-          this->swing_vertical_ = true;
-          this->swing_horizontal_ = true;
-          vertical_swing_changed = true;
-          horizontal_swing_changed = true;
-        }
-        break;
-
-      case climate::CLIMATE_SWING_VERTICAL:
-        if (!swing_vertical_ || swing_horizontal_) {
-          this->swing_vertical_ = true;
-          this->swing_horizontal_ = false;
-          vertical_swing_changed = true;
-          horizontal_swing_changed = true;
-        }
-        break;
-
-      case climate::CLIMATE_SWING_HORIZONTAL:
-        if (swing_vertical_ || !swing_horizontal_) {
-          this->swing_vertical_ = false;
-          this->swing_horizontal_ = true;
-          vertical_swing_changed = true;
-          horizontal_swing_changed = true;
-        }
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  if (vertical_swing_changed && this->swing_vertical_id_.has_value()) {
-    ESP_LOGV(UyatClimate::TAG, "Setting vertical swing: %s", ONOFF(swing_vertical_));
-    this->parent_->set_boolean_datapoint_value(this->swing_vertical_id_->number, swing_vertical_);
-  }
-
-  if (horizontal_swing_changed && this->swing_horizontal_id_.has_value()) {
-    ESP_LOGV(UyatClimate::TAG, "Setting horizontal swing: %s", ONOFF(swing_horizontal_));
-    this->parent_->set_boolean_datapoint_value(this->swing_horizontal_id_->number, swing_horizontal_);
+    this->swing_modes_.apply_swing_mode(*call.get_swing_mode());
   }
 
   // Publish the state after updating the swing mode
@@ -266,9 +196,9 @@ void UyatClimate::control_swing_mode_(const climate::ClimateCall &call) {
 }
 
 void UyatClimate::control_fan_mode_(const climate::ClimateCall &call) {
-  if ((call.get_fan_mode().has_value() && this->fan_speed_.has_value()))
+  if ((call.get_fan_mode().has_value() && this->fan_modes_.has_value()))
   {
-    this->fan_speed_->apply_mode(*call.get_fan_mode());
+    this->fan_modes_->apply_mode(*call.get_fan_mode());
   }
 }
 
@@ -300,17 +230,20 @@ climate::ClimateTraits UyatClimate::traits() {
     }
   }
 
-  if (this->swing_vertical_id_.has_value() && this->swing_horizontal_id_.has_value()) {
-    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-                                      climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-  } else if (this->swing_vertical_id_.has_value()) {
-    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
-  } else if (this->swing_horizontal_id_.has_value()) {
-    traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL});
+  {
+    const auto supported_modes = this->swing_modes_.get_supported_swing_modes();
+    for (const auto& supported: supported_modes)
+    {
+      traits.add_supported_swing_mode(supported);
+    }
+    if (!supported_modes.empty())
+    {
+      traits.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);
+    }
   }
 
-  if (this->fan_speed_.has_value()) {
-    for (const auto& mode: this->fan_speed_->get_supported_modes())
+  if (this->fan_modes_.has_value()) {
+    for (const auto& mode: this->fan_modes_->get_supported_modes())
     {
       traits.add_supported_fan_mode(mode);
     }
@@ -335,32 +268,24 @@ void UyatClimate::dump_config() {
   LOG_PIN("  Heating State Pin: ", this->active_state_pins_.heating);
   LOG_PIN("  Cooling State Pin: ", this->active_state_pins_.cooling);
   this->presets_.dump_config();
-  if (this->swing_vertical_id_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Vertical is %s", this->swing_vertical_id_->to_string().c_str());
+  if (this->swing_modes_.dp_vertical.has_value()) {
+    ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Vertical is %s", this->swing_modes_.dp_vertical->get_config().to_string().c_str());
   }
-  if (this->swing_horizontal_id_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Horizontal is %s", this->swing_horizontal_id_->to_string().c_str());
+  if (this->swing_modes_.dp_horizontal.has_value()) {
+    ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Horizontal is %s", this->swing_modes_.dp_horizontal->get_config().to_string().c_str());
   }
-  if (this->fan_speed_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Fan Speed is %s", this->fan_speed_->dp_number.get_config().to_string().c_str());
+  if (this->fan_modes_.has_value()) {
+    ESP_LOGCONFIG(UyatClimate::TAG, "  Fan Speed is %s", this->fan_modes_->dp_number.get_config().to_string().c_str());
   }
 }
 
 void UyatClimate::compute_swingmode_() {
-  if (this->swing_vertical_ && this->swing_horizontal_) {
-    this->swing_mode = climate::CLIMATE_SWING_BOTH;
-  } else if (this->swing_vertical_) {
-    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else if (this->swing_horizontal_) {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  }
+  this->swing_mode = this->swing_modes_.get_current_swing_mode();
 }
 
 void UyatClimate::compute_fanmode_() {
-  if (this->fan_speed_.has_value()) {
-    const auto current_mode = this->fan_speed_->get_current_mode();
+  if (this->fan_modes_.has_value()) {
+    const auto current_mode = this->fan_modes_->get_current_mode();
     if (current_mode.has_value())
     {
       this->fan_mode = *current_mode;
@@ -437,7 +362,7 @@ void UyatClimate::compute_state_() {
     {
       // Fallback to active state calc based on temp and hysteresis
       const float temp_diff = this->target_temperature - this->current_temperature;
-      if (std::abs(temp_diff) > this->temperatures_->hysteresis) {
+      if (std::abs(temp_diff) >= this->temperatures_->hysteresis) {
         if (this->supports_heat_ && temp_diff > 0) {
           target_action = climate::CLIMATE_ACTION_HEATING;
           this->mode = climate::CLIMATE_MODE_HEAT;
