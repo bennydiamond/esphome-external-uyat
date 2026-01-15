@@ -33,6 +33,7 @@ DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
 
 ActiveStateDpValueMapping = uyat_ns.struct("ActiveStateDpValueMapping")
+FanSpeedDpValueMapping = uyat_ns.struct("FanSpeedDpValueMapping")
 TemperatureConfig = uyat_ns.struct("TemperatureConfig")
 
 CONF_ACTIVE_STATE_DATAPOINT = "active_state_datapoint"
@@ -426,15 +427,24 @@ async def to_code(config):
             cg.add(var.set_swing_horizontal_id(await matching_datapoint_from_config(horizontal_config, SWING_DP_TYPES)))
 
     if fan_mode_config := config.get(CONF_FAN_MODE):
-        fan_modes_dp_config = fan_mode_config.get(CONF_DATAPOINT)
-        cg.add(var.set_fan_speed_id(await matching_datapoint_from_config(fan_modes_dp_config, FAN_SPEED_DP_TYPES)))
-        if (fan_auto_value := fan_mode_config.get(CONF_AUTO_VALUE)) is not None:
-            cg.add(var.set_fan_speed_auto_value(fan_auto_value))
-        if (fan_low_value := fan_mode_config.get(CONF_LOW_VALUE)) is not None:
-            cg.add(var.set_fan_speed_low_value(fan_low_value))
-        if (fan_medium_value := fan_mode_config.get(CONF_MEDIUM_VALUE)) is not None:
-            cg.add(var.set_fan_speed_medium_value(fan_medium_value))
-        if (fan_middle_value := fan_mode_config.get(CONF_MIDDLE_VALUE)) is not None:
-            cg.add(var.set_fan_speed_middle_value(fan_middle_value))
-        if (fan_high_value := fan_mode_config.get(CONF_HIGH_VALUE)) is not None:
-            cg.add(var.set_fan_speed_high_value(fan_high_value))
+        matching_dp = await matching_datapoint_from_config(fan_mode_config.get(CONF_DATAPOINT), FAN_SPEED_DP_TYPES)
+
+        if (auto_value_mapping := fan_mode_config.get(CONF_AUTO_VALUE)) is None:
+            auto_value_mapping = cg.RawExpression("{}")
+        if (low_value_mapping := fan_mode_config.get(CONF_LOW_VALUE)) is None:
+            low_value_mapping = cg.RawExpression("{}")
+        if (medium_value_mapping := fan_mode_config.get(CONF_MEDIUM_VALUE)) is None:
+            medium_value_mapping = cg.RawExpression("{}")
+        if (middle_value_mapping := fan_mode_config.get(CONF_MIDDLE_VALUE)) is None:
+            middle_value_mapping = cg.RawExpression("{}")
+        if (high_value_mapping := fan_mode_config.get(CONF_HIGH_VALUE)) is None:
+            high_value_mapping = cg.RawExpression("{}")
+
+        mapping = cg.StructInitializer(FanSpeedDpValueMapping,
+                                        ("auto_value", auto_value_mapping),
+                                        ("low_value", low_value_mapping),
+                                        ("medium_value", medium_value_mapping),
+                                        ("middle_value", middle_value_mapping),
+                                        ("high_value", high_value_mapping))
+
+        cg.add(var.configure_fan(matching_dp, mapping))

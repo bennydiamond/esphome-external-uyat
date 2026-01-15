@@ -71,8 +71,15 @@ void UyatClimate::on_current_temperature_value(const float value)
 void UyatClimate::on_active_state_value(const float value)
 {
   ESP_LOGV(UyatClimate::TAG, "MCU reported active state is: %.0f", value);
-  this->dp_active_state_->dp_number.get_last_received_value() = static_cast<uint32_t>(value);
   this->compute_state_();
+  this->publish_state();
+}
+
+void UyatClimate::on_fan_speed_value(const float value)
+{
+  ESP_LOGV(UyatClimate::TAG, "MCU reported fan speed is: %.0f", value);
+
+  this->compute_fanmode_();
   this->publish_state();
 }
 
@@ -133,20 +140,8 @@ void UyatClimate::setup() {
     });
   }
 
-  if (this->fan_speed_id_.has_value()) {
-    this->parent_->register_datapoint_listener(*this->fan_speed_id_, [this](const UyatDatapoint &datapoint) {
-      auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value);
-      if (!dp_value)
-      {
-        ESP_LOGW(UyatClimate::TAG, "Unexpected datapoint type!");
-        return;
-      }
-
-      ESP_LOGV(UyatClimate::TAG, "MCU reported Fan Speed Mode is: %u", dp_value->value);
-      this->fan_state_ = dp_value->value;
-      this->compute_fanmode_();
-      this->publish_state();
-    });
+  if (this->fan_speed_.has_value()) {
+    this->fan_speed_->dp_number.init(*(this->parent_));
   }
 }
 
@@ -271,34 +266,9 @@ void UyatClimate::control_swing_mode_(const climate::ClimateCall &call) {
 }
 
 void UyatClimate::control_fan_mode_(const climate::ClimateCall &call) {
-  if (call.get_fan_mode().has_value()) {
-    climate::ClimateFanMode fan_mode = *call.get_fan_mode();
-
-    uint8_t uyat_fan_speed;
-    switch (fan_mode) {
-      case climate::CLIMATE_FAN_LOW:
-        uyat_fan_speed = *fan_speed_low_value_;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        uyat_fan_speed = *fan_speed_medium_value_;
-        break;
-      case climate::CLIMATE_FAN_MIDDLE:
-        uyat_fan_speed = *fan_speed_middle_value_;
-        break;
-      case climate::CLIMATE_FAN_HIGH:
-        uyat_fan_speed = *fan_speed_high_value_;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-        uyat_fan_speed = *fan_speed_auto_value_;
-        break;
-      default:
-        uyat_fan_speed = 0;
-        break;
-    }
-
-    if (this->fan_speed_id_.has_value()) {
-      this->parent_->set_enum_datapoint_value(this->fan_speed_id_->number, uyat_fan_speed);
-    }
+  if ((call.get_fan_mode().has_value() && this->fan_speed_.has_value()))
+  {
+    this->fan_speed_->apply_mode(*call.get_fan_mode());
   }
 }
 
@@ -339,17 +309,11 @@ climate::ClimateTraits UyatClimate::traits() {
     traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL});
   }
 
-  if (fan_speed_id_) {
-    if (fan_speed_low_value_)
-      traits.add_supported_fan_mode(climate::CLIMATE_FAN_LOW);
-    if (fan_speed_medium_value_)
-      traits.add_supported_fan_mode(climate::CLIMATE_FAN_MEDIUM);
-    if (fan_speed_middle_value_)
-      traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);
-    if (fan_speed_high_value_)
-      traits.add_supported_fan_mode(climate::CLIMATE_FAN_HIGH);
-    if (fan_speed_auto_value_)
-      traits.add_supported_fan_mode(climate::CLIMATE_FAN_AUTO);
+  if (this->fan_speed_.has_value()) {
+    for (const auto& mode: this->fan_speed_->get_supported_modes())
+    {
+      traits.add_supported_fan_mode(mode);
+    }
   }
   return traits;
 }
@@ -377,8 +341,8 @@ void UyatClimate::dump_config() {
   if (this->swing_horizontal_id_.has_value()) {
     ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Horizontal is %s", this->swing_horizontal_id_->to_string().c_str());
   }
-  if (this->fan_speed_id_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Fan Speed is %s", this->fan_speed_id_->to_string().c_str());
+  if (this->fan_speed_.has_value()) {
+    ESP_LOGCONFIG(UyatClimate::TAG, "  Fan Speed is %s", this->fan_speed_->dp_number.get_config().to_string().c_str());
   }
 }
 
@@ -395,18 +359,11 @@ void UyatClimate::compute_swingmode_() {
 }
 
 void UyatClimate::compute_fanmode_() {
-  if (this->fan_speed_id_.has_value()) {
-    // Use state from MCU datapoint
-    if (this->fan_speed_auto_value_.has_value() && this->fan_state_ == this->fan_speed_auto_value_) {
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    } else if (this->fan_speed_high_value_.has_value() && this->fan_state_ == this->fan_speed_high_value_) {
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-    } else if (this->fan_speed_medium_value_.has_value() && this->fan_state_ == this->fan_speed_medium_value_) {
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    } else if (this->fan_speed_middle_value_.has_value() && this->fan_state_ == this->fan_speed_middle_value_) {
-      this->fan_mode = climate::CLIMATE_FAN_MIDDLE;
-    } else if (this->fan_speed_low_value_.has_value() && this->fan_state_ == this->fan_speed_low_value_) {
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
+  if (this->fan_speed_.has_value()) {
+    const auto current_mode = this->fan_speed_->get_current_mode();
+    if (current_mode.has_value())
+    {
+      this->fan_mode = *current_mode;
     }
   }
 }

@@ -18,6 +18,15 @@ struct ActiveStateDpValueMapping
    std::optional<uint32_t> fanonly_value;
 };
 
+struct FanSpeedDpValueMapping
+{
+   std::optional<uint32_t> auto_value;
+   std::optional<uint32_t> low_value;
+   std::optional<uint32_t> medium_value;
+   std::optional<uint32_t> middle_value;
+   std::optional<uint32_t> high_value;
+};
+
 struct TemperatureConfig
 {
   float offset{0.0f};
@@ -36,6 +45,7 @@ class UyatClimate : public climate::Climate, public Component {
   void on_target_temperature_value(const float);
   void on_current_temperature_value(const float);
   void on_active_state_value(const float);
+  void on_fan_speed_value(const float);
 
  public:
 
@@ -65,16 +75,18 @@ class UyatClimate : public climate::Climate, public Component {
   void set_cooling_state_pin(GPIOPin *pin) { this->active_state_pins_.cooling = pin; }
   void set_swing_vertical_id(const MatchingDatapoint& swing_vertical_id) { this->swing_vertical_id_ = swing_vertical_id; }
   void set_swing_horizontal_id(const MatchingDatapoint& swing_horizontal_id) { this->swing_horizontal_id_ = swing_horizontal_id; }
-  void set_fan_speed_id(const MatchingDatapoint& fan_speed_id) { this->fan_speed_id_ = fan_speed_id; }
-  void set_fan_speed_low_value(uint8_t fan_speed_low_value) { this->fan_speed_low_value_ = fan_speed_low_value; }
-  void set_fan_speed_medium_value(uint8_t fan_speed_medium_value) {
-    this->fan_speed_medium_value_ = fan_speed_medium_value;
+
+  void configure_fan(MatchingDatapoint fan_speed_dp, const FanSpeedDpValueMapping& mapping){
+    this->fan_speed_.emplace(
+      FanSpeed{
+        DpNumber([this](const float value){this->on_fan_speed_value(value); },
+          std::move(fan_speed_dp),
+          0.0f, 1.0f),
+        mapping
+      }
+    );
   }
-  void set_fan_speed_middle_value(uint8_t fan_speed_middle_value) {
-    this->fan_speed_middle_value_ = fan_speed_middle_value;
-  }
-  void set_fan_speed_high_value(uint8_t fan_speed_high_value) { this->fan_speed_high_value_ = fan_speed_high_value; }
-  void set_fan_speed_auto_value(uint8_t fan_speed_auto_value) { this->fan_speed_auto_value_ = fan_speed_auto_value; }
+
   void configure_temperatures(MatchingDatapoint target_temperature_dp, const TemperatureConfig& target_temperature_config,
                               std::optional<MatchingDatapoint> current_temperature_dp, const TemperatureConfig& current_temperature_config,
                               const float hysteresis, const bool reports_fahrenheit) {
@@ -406,6 +418,125 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
+  struct FanSpeed
+  {
+    DpNumber dp_number;
+    FanSpeedDpValueMapping mapping;
+
+    std::optional<esphome::climate::ClimateFanMode> get_current_mode() const
+    {
+      const auto last_value = dp_number.get_last_received_value();
+      if (!last_value)
+      {
+        return std::nullopt;
+      }
+
+      if (last_value == mapping.auto_value)
+      {
+        return climate::CLIMATE_FAN_AUTO;
+      }
+
+      if (last_value == mapping.high_value)
+      {
+        return climate::CLIMATE_FAN_HIGH;
+      }
+
+      if (last_value == mapping.medium_value)
+      {
+        return climate::CLIMATE_FAN_MEDIUM;
+      }
+
+      if (last_value == mapping.middle_value)
+      {
+        return climate::CLIMATE_FAN_MIDDLE;
+      }
+
+      if (last_value == mapping.low_value)
+      {
+        return climate::CLIMATE_FAN_LOW;
+      }
+
+      return std::nullopt;
+    }
+
+    std::vector<esphome::climate::ClimateFanMode> get_supported_modes() const
+    {
+      std::vector<esphome::climate::ClimateFanMode> result;
+
+      if (mapping.low_value)
+        result.push_back(climate::CLIMATE_FAN_LOW);
+      if (mapping.medium_value)
+        result.push_back(climate::CLIMATE_FAN_MEDIUM);
+      if (mapping.middle_value)
+        result.push_back(climate::CLIMATE_FAN_MIDDLE);
+      if (mapping.high_value)
+        result.push_back(climate::CLIMATE_FAN_HIGH);
+      if (mapping.auto_value)
+        result.push_back(climate::CLIMATE_FAN_AUTO);
+
+      return result;
+    }
+
+    bool apply_mode(const esphome::climate::ClimateFanMode new_mode)
+    {
+      switch(new_mode)
+      {
+        case esphome::climate::CLIMATE_FAN_LOW:
+        {
+          if (!mapping.low_value)
+          {
+            return false;
+          }
+
+          dp_number.set_value(*mapping.low_value);
+          return true;
+        }
+        case esphome::climate::CLIMATE_FAN_MEDIUM:
+        {
+          if (!mapping.medium_value)
+          {
+            return false;
+          }
+
+          dp_number.set_value(*mapping.medium_value);
+          return true;
+        }
+        case esphome::climate::CLIMATE_FAN_MIDDLE:
+        {
+          if (!mapping.middle_value)
+          {
+            return false;
+          }
+
+          dp_number.set_value(*mapping.middle_value);
+          return true;
+        }
+        case esphome::climate::CLIMATE_FAN_HIGH:
+        {
+          if (!mapping.high_value)
+          {
+            return false;
+          }
+
+          dp_number.set_value(*mapping.high_value);
+          return true;
+        }
+        case esphome::climate::CLIMATE_FAN_AUTO:
+        {
+          if (!mapping.auto_value)
+          {
+            return false;
+          }
+
+          dp_number.set_value(*mapping.auto_value);
+          return true;
+        }
+        default:
+          return false;
+      }
+    }
+  };
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -441,15 +572,9 @@ class UyatClimate : public climate::Climate, public Component {
   ActiveStatePins active_state_pins_{};
   Presets presets_{};
   std::optional<Temperatures> temperatures_{};
-  uint8_t fan_state_;
   optional<MatchingDatapoint> swing_vertical_id_{};
   optional<MatchingDatapoint> swing_horizontal_id_{};
-  optional<MatchingDatapoint> fan_speed_id_{};
-  optional<uint8_t> fan_speed_low_value_{};
-  optional<uint8_t> fan_speed_medium_value_{};
-  optional<uint8_t> fan_speed_middle_value_{};
-  optional<uint8_t> fan_speed_high_value_{};
-  optional<uint8_t> fan_speed_auto_value_{};
+  std::optional<FanSpeed> fan_speed_{};
   bool swing_vertical_{false};
   bool swing_horizontal_{false};
 };
