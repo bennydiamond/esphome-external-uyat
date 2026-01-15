@@ -21,12 +21,15 @@ CODEOWNERS = ["@szupi_ipuzs"]
 
 UyatSwitch = uyat_ns.class_("UyatSwitch", switch.Switch, cg.Component)
 
-SWITCH_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
-]
+SWITCH_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM
+    ],
+    "default": DPTYPE_BOOL,
+}
 
 CONFIG_SCHEMA = (
     switch.switch_schema(UyatSwitch)
@@ -37,8 +40,8 @@ CONFIG_SCHEMA = (
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                        *SWITCH_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
+                        *SWITCH_DP_TYPES["allowed"], lower=True
                     )
                 })
             ),

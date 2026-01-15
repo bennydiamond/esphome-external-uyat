@@ -43,9 +43,9 @@ CONF_COOLING_STATE_PIN = "cooling"
 CONF_TARGET_TEMPERATURE = "target_temperature"
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_ACTIVE_STATE_PINS = "active_state_pins"
+CONF_BOOST = "boost"
 CONF_ECO = "eco"
 CONF_SLEEP = "sleep"
-CONF_SLEEP_DATAPOINT = "sleep_datapoint"
 CONF_REPORTS_FAHRENHEIT = "reports_fahrenheit"
 CONF_VERTICAL = "vertical"
 CONF_HORIZONTAL = "horizontal"
@@ -56,48 +56,79 @@ CONF_HIGH_VALUE = "high_value"
 CONF_AUTO_VALUE = "auto_value"
 CONF_MULTIPLIER = "multiplier"
 
-SWITCH_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-]
+SWITCH_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
+}
 
-ACTIVE_STATE_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-]
+ACTIVE_STATE_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_ENUM
+}
 
-TEMPERATURE_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-]
+TEMPERATURE_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_UINT
+}
 
-ECO_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-]
+ECO_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
+}
 
-SLEEP_DP_TYPES = [
-    DPTYPE_BOOL,
-]
+BOOST_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
+}
 
-SWING_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-]
+SLEEP_DP_TYPES = {
+   "allowed": [
+        DPTYPE_BOOL,
+   ],
+   "default": DPTYPE_BOOL
+}
 
-FAN_SPEED_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_ENUM,
-    DPTYPE_UINT,
-]
+SWING_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+   ],
+   "default": DPTYPE_BOOL
+}
+
+FAN_SPEED_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_ENUM,
+        DPTYPE_UINT,
+   ],
+   "default": DPTYPE_ENUM
+}
 
 UyatClimate = uyat_ns.class_("UyatClimate", climate.Climate, cg.Component)
 
@@ -138,8 +169,8 @@ SWITCH_CONFIG_SCHEMA = cv.Schema(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                        *SWITCH_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
+                        *SWITCH_DP_TYPES["allowed"], lower=True
                     ),
                 })
         ),
@@ -162,8 +193,8 @@ ACTIVE_STATE_DATAPOINT_CONFIG_SCHEMA = cv.Schema(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_ENUM): cv.one_of(
-                        *ACTIVE_STATE_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=ACTIVE_STATE_DP_TYPES["default"]): cv.one_of(
+                        *ACTIVE_STATE_DP_TYPES["allowed"], lower=True
                     ),
                 })
         ),
@@ -176,13 +207,26 @@ ACTIVE_STATE_DATAPOINT_CONFIG_SCHEMA = cv.Schema(
 
 PRESETS_CONFIG_SCHEMA = cv.All(cv.Schema(
     {
+        cv.Optional(CONF_BOOST): {
+            cv.Required(CONF_DATAPOINT): cv.Any(cv.uint8_t,
+                cv.Schema(
+                {
+                    cv.Required(CONF_NUMBER): cv.uint8_t,
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=BOOST_DP_TYPES["default"]): cv.one_of(
+                        *BOOST_DP_TYPES["allowed"], lower=True
+                    ),
+                }),
+            ),
+            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_TEMPERATURE): cv.temperature,
+        },
         cv.Optional(CONF_ECO): {
             cv.Required(CONF_DATAPOINT): cv.Any(cv.uint8_t,
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                        *ECO_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=ECO_DP_TYPES["default"]): cv.one_of(
+                        *ECO_DP_TYPES["allowed"], lower=True
                     ),
                 }),
             ),
@@ -194,8 +238,8 @@ PRESETS_CONFIG_SCHEMA = cv.All(cv.Schema(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                        *SLEEP_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=SLEEP_DP_TYPES["default"]): cv.one_of(
+                        *SLEEP_DP_TYPES["allowed"], lower=True
                     ),
                 }),
             ),
@@ -212,8 +256,8 @@ FAN_MODE_CONFIG_SCHEMA = cv.Schema(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_ENUM): cv.one_of(
-                        *FAN_SPEED_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=FAN_SPEED_DP_TYPES["default"]): cv.one_of(
+                        *FAN_SPEED_DP_TYPES["allowed"], lower=True
                     ),
                 })
         ),
@@ -231,8 +275,8 @@ ANY_SWING_MODE_SCHEMA = cv.Schema(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                        *SWING_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=SWING_DP_TYPES["default"]): cv.one_of(
+                        *SWING_DP_TYPES["allowed"], lower=True
                     ),
                 })
         ),
@@ -256,8 +300,8 @@ TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                    *TEMPERATURE_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=TEMPERATURE_DP_TYPES["default"]): cv.one_of(
+                    *TEMPERATURE_DP_TYPES["allowed"], lower=True
                 ),
             })
         ),
@@ -354,10 +398,14 @@ async def to_code(config):
         cg.add(var.set_reports_fahrenheit())
 
     if preset_config := config.get(CONF_PRESET, {}):
+        if boost_config := preset_config.get(CONF_BOOST, {}):
+            if (boost_temperature := boost_config.get(CONF_TEMPERATURE)) is None:
+                boost_temperature = cg.RawExpression("{}")
+            cg.add(var.configure_preset_boost(await matching_datapoint_from_config(boost_config.get(CONF_DATAPOINT), BOOST_DP_TYPES), boost_temperature, boost_config[CONF_INVERTED]))
         if eco_config := preset_config.get(CONF_ECO, {}):
-            cg.add(var.configure_preset_eco(await matching_datapoint_from_config(eco_config.get(CONF_DATAPOINT), ECO_DP_TYPES), eco_config[CONF_INVERTED]))
-            if eco_temperature := eco_config.get(CONF_TEMPERATURE):
-                cg.add(var.set_eco_temperature(eco_temperature))
+            if (eco_temperature := eco_config.get(CONF_TEMPERATURE)) is None:
+                eco_temperature = cg.RawExpression("{}")
+            cg.add(var.configure_preset_eco(await matching_datapoint_from_config(eco_config.get(CONF_DATAPOINT), ECO_DP_TYPES), eco_temperature, eco_config[CONF_INVERTED]))
         if sleep_config := preset_config.get(CONF_SLEEP, {}):
             cg.add(var.configure_preset_sleep(await matching_datapoint_from_config(sleep_config.get(CONF_DATAPOINT), SLEEP_DP_TYPES), eco_config[CONF_INVERTED]))
 

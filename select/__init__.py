@@ -25,12 +25,15 @@ CODEOWNERS = ["@szupi_ipuzs"]
 
 UyatSelect = uyat_ns.class_("UyatSelect", select.Select, cg.Component)
 
-SELECT_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
-]
+SELECT_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM
+    ],
+    "default": DPTYPE_ENUM,
+}
 
 def ensure_option_map(value):
     cv.check_not_templatable(value)
@@ -56,8 +59,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_ENUM): cv.one_of(
-                        *SELECT_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=SELECT_DP_TYPES["default"]): cv.one_of(
+                        *SELECT_DP_TYPES["allowed"], lower=True
                     )
                 })
             ),

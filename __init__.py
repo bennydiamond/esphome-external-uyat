@@ -78,30 +78,30 @@ async def translate_dp_types(dp_types: list):
 
     return cg.ArrayInitializer(*cpp_types_enum)
 
-async def matching_datapoint_from_config(dp_config, allowed_types: list):
-    allow_autodetect = DPTYPE_DETECT in allowed_types
-    if isinstance(dp_config, dict):
-        dp_type = dp_config.get(CONF_DATAPOINT_TYPE)
-        if dp_type == DPTYPE_DETECT and allow_autodetect:
-            return cg.StructInitializer(
-                MatchingDatapoint,
-                ("number", dp_config[CONF_NUMBER]),
-                ("types", await translate_dp_types(allowed_types))
-            )
-        else:
-            return cg.StructInitializer(
-                MatchingDatapoint,
-                ("number", dp_config[CONF_NUMBER]),
-                ("types", await translate_dp_types([dp_type]))
-            )
+async def matching_datapoint_from_config(dp_config, allowed_types):
+    if not isinstance(dp_config, dict):
+        # short form, translate into full
+        full_config = {CONF_NUMBER: dp_config, CONF_DATAPOINT_TYPE: allowed_types["default"]}
     else:
-        if allow_autodetect or len(allowed_types)==1:
-            return cg.StructInitializer(
-                MatchingDatapoint,
-                ("number", dp_config),
-                ("types", await translate_dp_types(allowed_types))
-            )
+        full_config = dp_config
 
+    dp_type = full_config.get(CONF_DATAPOINT_TYPE)
+    # raise if selected type is not in the allowed list
+    if dp_type not in allowed_types["allowed"]:
+        raise ValueError(f"{dp_type} is not allowed")
+
+    if dp_type == DPTYPE_DETECT:
+        return cg.StructInitializer(
+            MatchingDatapoint,
+            ("number", full_config[CONF_NUMBER]),
+            ("types", await translate_dp_types(allowed_types["allowed"]))
+        )
+    else:
+        return cg.StructInitializer(
+            MatchingDatapoint,
+            ("number", full_config[CONF_NUMBER]),
+            ("types", await translate_dp_types([dp_type]))
+        )
 
 CPP_DATAPOINT_TYPES = {
     DPTYPE_ANY: uyat_ns.struct("UyatDatapoint"),

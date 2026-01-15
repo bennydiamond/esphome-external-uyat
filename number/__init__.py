@@ -32,12 +32,14 @@ CONF_MULTIPLIER = "multiplier"
 UyatNumber = uyat_ns.class_("UyatNumber", number.Number, cg.Component)
 
 NUMBER_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+        ],
+    "default": DPTYPE_UINT
 }
-
 
 def validate_min_max(config):
     max_value = config[CONF_MAX_VALUE]
@@ -64,8 +66,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Schema(
                 {
                     cv.Required(CONF_NUMBER): cv.uint8_t,
-                    cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                        *NUMBER_DP_TYPES, lower=True
+                    cv.Optional(CONF_DATAPOINT_TYPE, default=NUMBER_DP_TYPES["default"]): cv.one_of(
+                        *NUMBER_DP_TYPES["allowed"], lower=True
                     )
                 })
             ),

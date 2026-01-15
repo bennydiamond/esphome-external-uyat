@@ -20,9 +20,13 @@ struct ActiveStateDpValueMapping
 
 class UyatClimate : public climate::Climate, public Component {
  private:
+
+  static constexpr const char * TAG = "uyat.climate";
+
   void on_switch_value(const bool);
   void on_sleep_value(const bool);
   void on_eco_value(const bool);
+  void on_boost_value(const bool);
   void on_target_temperature_value(const float);
   void on_current_temperature_value(const float);
   void on_active_state_value(const float);
@@ -75,14 +79,22 @@ class UyatClimate : public climate::Climate, public Component {
                           std::move(current_temperature_dp),
                           offset, temperature_multiplier);
   }
-  void configure_preset_eco(MatchingDatapoint eco_dp, const bool inverted = false) {
-    this->dp_eco_.emplace([this](const bool value){this->on_eco_value(value);},
+
+  void configure_preset_boost(MatchingDatapoint boost_dp, const std::optional<float> boost_temperature, const bool inverted = false) {
+    this->presets_.boost.dp.emplace([this](const bool value){this->on_boost_value(value);},
+                             std::move(boost_dp),
+                             inverted);
+    this->presets_.boost.temperature = boost_temperature;
+  }
+
+  void configure_preset_eco(MatchingDatapoint eco_dp, const std::optional<float> eco_temperature, const bool inverted = false) {
+    this->presets_.eco.dp.emplace([this](const bool value){this->on_eco_value(value);},
                           std::move(eco_dp),
                           inverted);
+    this->presets_.eco.temperature = eco_temperature;
   }
-  void set_eco_temperature(float eco_temperature) { this->eco_temperature_ = eco_temperature; }
   void configure_preset_sleep(MatchingDatapoint sleep_dp, const bool inverted = false) {
-    this->dp_sleep_.emplace([this](const bool value){this->on_sleep_value(value);},
+    this->presets_.sleep.dp.emplace([this](const bool value){this->on_sleep_value(value);},
                              std::move(sleep_dp),
                              inverted);
   }
@@ -211,6 +223,116 @@ class UyatClimate : public climate::Climate, public Component {
     bool cooling_state{false};
   };
 
+  struct AnyPreset
+  {
+    std::optional<DpSwitch> dp{};
+    std::optional<float> temperature{};
+  };
+
+  struct Presets
+  {
+    AnyPreset boost{};
+    AnyPreset eco{};
+    AnyPreset sleep{};
+
+    void init(DatapointHandler& dp_handler)
+    {
+      if (boost.dp.has_value()) {
+        boost.dp->init(dp_handler);
+      }
+      if (eco.dp.has_value()) {
+        eco.dp->init(dp_handler);
+      }
+      if (sleep.dp.has_value()) {
+        sleep.dp->init(dp_handler);
+      }
+    }
+
+    void dump_config() const
+    {
+      if (boost.dp.has_value()) {
+        ESP_LOGCONFIG(UyatClimate::TAG, "  Boost is %s", boost.dp->get_config().to_string().c_str());
+      }
+      if (eco.dp.has_value()) {
+        ESP_LOGCONFIG(UyatClimate::TAG, "  Eco is %s", eco.dp->get_config().to_string().c_str());
+      }
+      if (sleep.dp.has_value()) {
+        ESP_LOGCONFIG(UyatClimate::TAG, "  Sleep is %s", sleep.dp->get_config().to_string().c_str());
+      }
+    }
+
+    std::vector<esphome::climate::ClimatePreset> get_supported_presets() const
+    {
+      std::vector<esphome::climate::ClimatePreset> result;
+
+      if (boost.dp)
+      {
+        result.push_back(climate::CLIMATE_PRESET_BOOST);
+      }
+      if (eco.dp)
+      {
+        result.push_back(climate::CLIMATE_PRESET_ECO);
+      }
+      if (sleep.dp)
+      {
+        result.push_back(climate::CLIMATE_PRESET_SLEEP);
+      }
+
+      return result;
+    }
+
+    esphome::climate::ClimatePreset get_active_preset() const
+    {
+      if (boost.dp && boost.dp->get_last_received_value().value_or(false))
+      {
+        return climate::CLIMATE_PRESET_BOOST;
+      }
+      if (eco.dp && eco.dp->get_last_received_value().value_or(false))
+      {
+        return climate::CLIMATE_PRESET_ECO;
+      }
+      if (sleep.dp && sleep.dp->get_last_received_value().value_or(false))
+      {
+        return climate::CLIMATE_PRESET_SLEEP;
+      }
+
+      return climate::CLIMATE_PRESET_NONE;
+    }
+
+    std::optional<float> get_active_preset_temperature() const
+    {
+      if (eco.dp && eco.dp->get_last_received_value().value_or(false))
+      {
+        return eco.temperature;
+      }
+      if (sleep.dp && sleep.dp->get_last_received_value().value_or(false))
+      {
+        return sleep.temperature;
+      }
+
+      return std::nullopt;
+    }
+
+    void apply_preset(const esphome::climate::ClimatePreset preset_to_apply)
+    {
+      if (boost.dp.has_value()) {
+        const bool boost_value = preset_to_apply == climate::CLIMATE_PRESET_BOOST;
+        ESP_LOGV(TAG, "Setting boost: %s", ONOFF(boost_value));
+        eco.dp->set_value(boost_value);
+      }
+      if (eco.dp.has_value()) {
+        const bool eco_value = preset_to_apply == climate::CLIMATE_PRESET_ECO;
+        ESP_LOGV(TAG, "Setting eco: %s", ONOFF(eco_value));
+        eco.dp->set_value(eco_value);
+      }
+      if (sleep.dp.has_value()) {
+        const bool sleep_value = preset_to_apply == climate::CLIMATE_PRESET_SLEEP;
+        ESP_LOGV(TAG, "Setting sleep: %s", ONOFF(sleep_value));
+        sleep.dp->set_value(sleep_value);
+      }
+    }
+  };
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -222,9 +344,6 @@ class UyatClimate : public climate::Climate, public Component {
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
-
-  /// Re-compute the active preset of this climate controller.
-  void compute_preset_();
 
   /// Re-compute the target temperature of this climate controller.
   void compute_target_temperature_();
@@ -249,10 +368,8 @@ class UyatClimate : public climate::Climate, public Component {
   ActiveStatePins active_state_pins_{};
   std::optional<DpNumber> dp_target_temperature_{};
   std::optional<DpNumber> dp_current_temperature_{};
+  Presets presets_{};
   float hysteresis_{1.0f};
-  std::optional<DpSwitch> dp_eco_{};
-  std::optional<DpSwitch> dp_sleep_{};
-  optional<float> eco_temperature_{};
   uint8_t fan_state_;
   optional<MatchingDatapoint> swing_vertical_id_{};
   optional<MatchingDatapoint> swing_horizontal_id_{};
@@ -265,8 +382,6 @@ class UyatClimate : public climate::Climate, public Component {
   bool swing_vertical_{false};
   bool swing_horizontal_{false};
   float manual_temperature_;
-  bool eco_;
-  bool sleep_;
   bool reports_fahrenheit_{false};
 };
 

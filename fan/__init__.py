@@ -16,29 +16,41 @@ CONF_DIRECTION = "direction"
 UyatFan = uyat_ns.class_("UyatFan", cg.Component, fan.Fan)
 
 SPEED_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_ENUM,
-    DPTYPE_UINT,
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_ENUM,
+        DPTYPE_UINT,
+    ],
+    "default": DPTYPE_UINT
 }
 
 OSCILLATION_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_ENUM,
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
 }
 
 SWITCH_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
 }
 
 DIRECTION_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_BOOL
 }
 
 SPEED_CONFIG_SCHEMA = cv.Schema(
@@ -47,8 +59,8 @@ SPEED_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                    *SPEED_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=SPEED_DP_TYPES["default"]): cv.one_of(
+                    *SPEED_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -63,8 +75,8 @@ OSCILLATION_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                    *OSCILLATION_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=OSCILLATION_DP_TYPES["default"]): cv.one_of(
+                    *OSCILLATION_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -78,8 +90,8 @@ SWITCH_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                    *SWITCH_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
+                    SWITCH_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -93,8 +105,8 @@ DIRECTION_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                    *DIRECTION_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=DIRECTION_DP_TYPES["default"]): cv.one_of(
+                    *DIRECTION_DP_TYPES["allowed"], lower=True
                 )
             })
         ),

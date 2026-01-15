@@ -33,18 +33,24 @@ CONF_ENCODING_HEX = "hex"
 CONF_TYPE_TEXT = "text"
 CONF_TYPE_MAPPED = "mapped"
 
-TEXT_SENSOR_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_RAW,
-    DPTYPE_STRING
-]
+TEXT_SENSOR_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_RAW,
+        DPTYPE_STRING
+    ],
+    "default": DPTYPE_DETECT,
+}
 
-MAPPED_TEXT_SENSOR_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_ENUM,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-]
+MAPPED_TEXT_SENSOR_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_ENUM,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+    ],
+    "default": DPTYPE_DETECT,
+}
 
 TEXT_ENCODINGS = {
     CONF_ENCODING_PLAIN: UyatTextDataEncoding.PLAIN,
@@ -77,8 +83,8 @@ CONFIG_SCHEMA = cv.typed_schema(
                     cv.Schema(
                     {
                         cv.Required(CONF_NUMBER): cv.uint8_t,
-                        cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_DETECT): cv.one_of(
-                            *TEXT_SENSOR_DP_TYPES, lower=True
+                        cv.Optional(CONF_DATAPOINT_TYPE, default=TEXT_SENSOR_DP_TYPES["default"]): cv.one_of(
+                            *TEXT_SENSOR_DP_TYPES["allowed"], lower=True
                         ),
                     })
                 ),
@@ -96,8 +102,8 @@ CONFIG_SCHEMA = cv.typed_schema(
                     cv.Schema(
                     {
                         cv.Required(CONF_NUMBER): cv.uint8_t,
-                        cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_DETECT): cv.one_of(
-                            *MAPPED_TEXT_SENSOR_DP_TYPES, lower=True
+                        cv.Optional(CONF_DATAPOINT_TYPE, default=MAPPED_TEXT_SENSOR_DP_TYPES["default"]): cv.one_of(
+                            *MAPPED_TEXT_SENSOR_DP_TYPES["allowed"], lower=True
                         )
                     })
                 ),

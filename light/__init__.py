@@ -34,32 +34,47 @@ COLOR_TYPES = {
 }
 
 DIMMER_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_UINT
 }
 
 MIN_VALUE_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_UINT
 }
 
 SWITCH_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM
+    ],
+    "default": DPTYPE_BOOL
 }
 
 COLOR_DP_TYPES = {
-    DPTYPE_STRING
+    "allowed": [
+        DPTYPE_STRING
+    ],
+    "default": DPTYPE_STRING
 }
 
 WHITE_TEMPERATURE_DP_TYPES = {
-    DPTYPE_DETECT,
-    DPTYPE_UINT,
-    DPTYPE_ENUM
+    "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+    ],
+    "default": DPTYPE_UINT
 }
 
 
@@ -71,8 +86,8 @@ SWITCH_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_BOOL): cv.one_of(
-                    *SWITCH_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
+                    *SWITCH_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -86,8 +101,8 @@ DIMMER_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                    *DIMMER_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=DIMMER_DP_TYPES["default"]): cv.one_of(
+                    *DIMMER_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -98,8 +113,8 @@ DIMMER_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                    *MIN_VALUE_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=MIN_VALUE_DP_TYPES["default"]): cv.one_of(
+                    *MIN_VALUE_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -112,8 +127,8 @@ COLOR_CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_STRING): cv.one_of(
-                    *COLOR_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=COLOR_DP_TYPES["default"]): cv.one_of(
+                    *COLOR_DP_TYPES["allowed"], lower=True
                 )
             })
         ),
@@ -127,8 +142,8 @@ WHITE_TEMPERATURE_SCHEMA = cv.Schema(
             cv.Schema(
             {
                 cv.Required(CONF_NUMBER): cv.uint8_t,
-                cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_UINT): cv.one_of(
-                    *WHITE_TEMPERATURE_DP_TYPES, lower=True
+                cv.Optional(CONF_DATAPOINT_TYPE, default=WHITE_TEMPERATURE_DP_TYPES["default"]): cv.one_of(
+                    *WHITE_TEMPERATURE_DP_TYPES["allowed"], lower=True
                 )
             })
         ),

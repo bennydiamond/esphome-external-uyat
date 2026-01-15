@@ -26,7 +26,7 @@ struct DpSwitch
 
    void init(DatapointHandler& handler)
    {
-      handler_ = &handler;
+      this->handler_ = &handler;
       this->handler_->register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpSwitch::TAG, "%s processing as switch", datapoint.to_string().c_str());
 

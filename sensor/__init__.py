@@ -39,17 +39,23 @@ CONF_TYPE_NUMBER = "number"
 CONF_TYPE_VAP = "vap"
 CONF_VAP_VALUE_TYPE = "vap_value_type"
 
-SENSOR_DP_TYPES = [
-    DPTYPE_DETECT,
-    DPTYPE_BOOL,
-    DPTYPE_UINT,
-    DPTYPE_ENUM,
-    DPTYPE_BITMAP,
-]
+SENSOR_DP_TYPES = {
+   "allowed": [
+        DPTYPE_DETECT,
+        DPTYPE_BOOL,
+        DPTYPE_UINT,
+        DPTYPE_ENUM,
+        DPTYPE_BITMAP,
+    ],
+    "default": DPTYPE_DETECT,
+}
 
-VAP_DP_TYPES = [
-    DPTYPE_RAW
-]
+VAP_DP_TYPES = {
+   "allowed": [
+        DPTYPE_RAW
+    ],
+    "default": DPTYPE_RAW,
+}
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -61,8 +67,8 @@ CONFIG_SCHEMA = cv.typed_schema(
                     cv.Schema(
                     {
                         cv.Required(CONF_NUMBER): cv.uint8_t,
-                        cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_DETECT): cv.one_of(
-                            *SENSOR_DP_TYPES, lower=True
+                        cv.Optional(CONF_DATAPOINT_TYPE, default=SENSOR_DP_TYPES["default"]): cv.one_of(
+                            *SENSOR_DP_TYPES["allowed"], lower=True
                         )
                     })
                 ),
@@ -78,8 +84,8 @@ CONFIG_SCHEMA = cv.typed_schema(
                     cv.Schema(
                     {
                         cv.Required(CONF_NUMBER): cv.uint8_t,
-                        cv.Optional(CONF_DATAPOINT_TYPE, default=DPTYPE_RAW): cv.one_of(
-                            *VAP_DP_TYPES, lower=True
+                        cv.Optional(CONF_DATAPOINT_TYPE, default=VAP_DP_TYPES["default"]): cv.one_of(
+                            *VAP_DP_TYPES["allowed"], lower=True
                         )
                     })
                 ),
