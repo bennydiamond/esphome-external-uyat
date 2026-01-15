@@ -18,6 +18,12 @@ struct ActiveStateDpValueMapping
    std::optional<uint32_t> fanonly_value;
 };
 
+struct TemperatureConfig
+{
+  float offset{0.0f};
+  float multiplier{1.0f};
+};
+
 class UyatClimate : public climate::Climate, public Component {
  private:
 
@@ -69,15 +75,28 @@ class UyatClimate : public climate::Climate, public Component {
   }
   void set_fan_speed_high_value(uint8_t fan_speed_high_value) { this->fan_speed_high_value_ = fan_speed_high_value; }
   void set_fan_speed_auto_value(uint8_t fan_speed_auto_value) { this->fan_speed_auto_value_ = fan_speed_auto_value; }
-  void set_target_temperature_id(MatchingDatapoint target_temperature_dp, const float offset = 0.0f, const float temperature_multiplier = 1.0f) {
-    this->dp_target_temperature_.emplace([this](const float value){this->on_target_temperature_value(value);},
-                          std::move(target_temperature_dp),
-                          offset, temperature_multiplier);
-  }
-  void set_current_temperature_id(MatchingDatapoint current_temperature_dp, const float offset = 0.0f, const float temperature_multiplier = 1.0f) {
-    this->dp_current_temperature_.emplace([this](const float value){this->on_current_temperature_value(value);},
-                          std::move(current_temperature_dp),
-                          offset, temperature_multiplier);
+  void configure_temperatures(MatchingDatapoint target_temperature_dp, const TemperatureConfig& target_temperature_config,
+                              std::optional<MatchingDatapoint> current_temperature_dp, const TemperatureConfig& current_temperature_config,
+                              const float hysteresis, const bool reports_fahrenheit) {
+    this->temperatures_.emplace(Temperatures{
+        DpNumber(
+          [this](const float value){this->on_target_temperature_value(value);},
+          std::move(target_temperature_dp),
+          target_temperature_config.offset, target_temperature_config.multiplier
+        ),
+        std::nullopt,
+        hysteresis, reports_fahrenheit
+      }
+    );
+
+    if (current_temperature_dp)
+    {
+      this->temperatures_->dp_current.emplace(
+          [this](const float value){this->on_current_temperature_value(value);},
+          std::move(*current_temperature_dp),
+          current_temperature_config.offset, current_temperature_config.multiplier
+      );
+    }
   }
 
   void configure_preset_boost(MatchingDatapoint boost_dp, const std::optional<float> boost_temperature, const bool inverted = false) {
@@ -98,8 +117,6 @@ class UyatClimate : public climate::Climate, public Component {
                              std::move(sleep_dp),
                              inverted);
   }
-
-  void set_reports_fahrenheit() { this->reports_fahrenheit_ = true; }
 
   void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
@@ -334,6 +351,61 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
+  struct Temperatures
+  {
+    DpNumber dp_target;
+    std::optional<DpNumber> dp_current;
+    float hysteresis{1.0f};
+    bool reports_fahrenheit{false};
+
+    std::optional<float> get_current_temperature() const
+    {
+      if (!dp_current)
+      {
+        return std::nullopt;
+      }
+      const auto last_value = dp_current->get_last_received_value();
+      if (!last_value)
+      {
+        return std::nullopt;
+      }
+
+      if (!reports_fahrenheit)
+      {
+        return last_value;
+      }
+
+      return (last_value.value() - 32) * 5 / 9;
+    }
+
+    std::optional<float> get_target_temperature() const
+    {
+      const auto last_value = dp_target.get_last_received_value();
+      if (!last_value)
+      {
+        return std::nullopt;
+      }
+
+      if (!reports_fahrenheit)
+      {
+        return last_value;
+      }
+
+      return (last_value.value() - 32) * 5 / 9;
+    }
+
+    void set_target_temperature(float value)
+    {
+      if (reports_fahrenheit)
+      {
+        value = (value * 9 / 5) + 32;
+      }
+
+      ESP_LOGV(UyatClimate::TAG, "Setting target temperature: %.1f", value);
+      dp_target.set_value(value);
+    }
+  };
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -347,7 +419,7 @@ class UyatClimate : public climate::Climate, public Component {
   climate::ClimateTraits traits() override;
 
   /// Re-compute the target temperature of this climate controller.
-  void compute_target_temperature_();
+  void select_target_temperature_to_report_();
 
   /// Re-compute the state of this climate controller.
   void compute_state_();
@@ -367,10 +439,8 @@ class UyatClimate : public climate::Climate, public Component {
   std::optional<DpSwitch> dp_switch_{};
   std::optional<ActiveStateDp> dp_active_state_{};
   ActiveStatePins active_state_pins_{};
-  std::optional<DpNumber> dp_target_temperature_{};
-  std::optional<DpNumber> dp_current_temperature_{};
   Presets presets_{};
-  float hysteresis_{1.0f};
+  std::optional<Temperatures> temperatures_{};
   uint8_t fan_state_;
   optional<MatchingDatapoint> swing_vertical_id_{};
   optional<MatchingDatapoint> swing_horizontal_id_{};
@@ -382,8 +452,6 @@ class UyatClimate : public climate::Climate, public Component {
   optional<uint8_t> fan_speed_auto_value_{};
   bool swing_vertical_{false};
   bool swing_horizontal_{false};
-  float manual_temperature_;
-  bool reports_fahrenheit_{false};
 };
 
 }  // namespace uyat

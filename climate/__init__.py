@@ -12,7 +12,8 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_INVERTED,
     CONF_OFFSET,
-    CONF_SWITCH
+    CONF_SWITCH,
+    CONF_HYSTERESIS
 )
 
 from .. import (
@@ -32,6 +33,7 @@ DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
 
 ActiveStateDpValueMapping = uyat_ns.struct("ActiveStateDpValueMapping")
+TemperatureConfig = uyat_ns.struct("TemperatureConfig")
 
 CONF_ACTIVE_STATE_DATAPOINT = "active_state_datapoint"
 CONF_HEATING_VALUE = "heating_value"
@@ -40,8 +42,8 @@ CONF_DRYING_VALUE = "drying_value"
 CONF_FANONLY_VALUE = "fanonly_value"
 CONF_HEATING_STATE_PIN = "heating"
 CONF_COOLING_STATE_PIN = "cooling"
-CONF_TARGET_TEMPERATURE = "target_temperature"
-CONF_CURRENT_TEMPERATURE = "current_temperature"
+CONF_TARGET_TEMPERATURE = "target"
+CONF_CURRENT_TEMPERATURE = "current"
 CONF_ACTIVE_STATE_PINS = "active_state_pins"
 CONF_BOOST = "boost"
 CONF_ECO = "eco"
@@ -294,7 +296,7 @@ SWING_MODE_CONFIG_SCHEMA = cv.All(
     )
 )
 
-TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
+ANY_TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATAPOINT): cv.Any(cv.uint8_t,
             cv.Schema(
@@ -310,6 +312,15 @@ TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TARGET_TEMPERATURE): ANY_TEMPERATURE_CONFIG_SCHEMA,
+        cv.Optional(CONF_CURRENT_TEMPERATURE): ANY_TEMPERATURE_CONFIG_SCHEMA,
+        cv.Optional(CONF_REPORTS_FAHRENHEIT, default=False): cv.boolean,
+        cv.Optional(CONF_HYSTERESIS, default=1.0): cv.positive_float,
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     climate.climate_schema(UyatClimate)
     .extend(
@@ -320,16 +331,14 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
             cv.Optional(CONF_ACTIVE_STATE_DATAPOINT): ACTIVE_STATE_DATAPOINT_CONFIG_SCHEMA,
             cv.Optional(CONF_ACTIVE_STATE_PINS): ACTIVE_STATE_PINS_CONFIG_SCHEMA,
-            cv.Optional(CONF_TARGET_TEMPERATURE): TEMPERATURE_CONFIG_SCHEMA,
-            cv.Optional(CONF_CURRENT_TEMPERATURE): TEMPERATURE_CONFIG_SCHEMA,
-            cv.Optional(CONF_REPORTS_FAHRENHEIT, default=False): cv.boolean,
+            cv.Optional(CONF_TEMPERATURE): TEMPERATURE_CONFIG_SCHEMA,
             cv.Optional(CONF_PRESET): PRESETS_CONFIG_SCHEMA,
             cv.Optional(CONF_FAN_MODE): FAN_MODE_CONFIG_SCHEMA,
             cv.Optional(CONF_SWING_MODE): SWING_MODE_CONFIG_SCHEMA,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE, CONF_SWITCH),
+    cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_SWITCH),
     validate_cool_heat_values,
 )
 
@@ -374,28 +383,29 @@ async def to_code(config):
             )
             cg.add(var.configure_active_state_dp(matching_dp, mapping))
 
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        target_temperature_config = temperature_config.get(CONF_TARGET_TEMPERATURE)
+        tt_config_struct = cg.StructInitializer(TemperatureConfig,
+                                                ("offset", target_temperature_config.get(CONF_OFFSET, 0.0)),
+                                                ("multiplier", target_temperature_config.get(CONF_MULTIPLIER, 1.0)),
+                                                )
+        tt_matching_dp = await matching_datapoint_from_config(target_temperature_config.get(CONF_DATAPOINT), TEMPERATURE_DP_TYPES)
 
-    if target_temperature_config := config.get(CONF_TARGET_TEMPERATURE):
-        multiplier = target_temperature_config.get(CONF_MULTIPLIER, 1.0)
-        offset = target_temperature_config.get(CONF_OFFSET, 0.0)
-        target_temperature_datapoint = target_temperature_config.get(CONF_DATAPOINT)
-        cg.add(
-            var.set_target_temperature_id(await matching_datapoint_from_config(target_temperature_datapoint, TEMPERATURE_DP_TYPES),
-                                          offset,
-                                          multiplier)
-            )
-    if current_temperature_config := config.get(CONF_CURRENT_TEMPERATURE):
-        multiplier = current_temperature_config.get(CONF_MULTIPLIER, 1.0)
-        offset = current_temperature_config.get(CONF_OFFSET, 0.0)
-        current_temperature_datapoint = current_temperature_config.get(CONF_DATAPOINT)
-        cg.add(
-            var.set_current_temperature_id(await matching_datapoint_from_config(current_temperature_datapoint, TEMPERATURE_DP_TYPES),
-                                          offset,
-                                          multiplier)
-            )
+        if current_temperature_config := temperature_config.get(CONF_CURRENT_TEMPERATURE):
+            ct_config_struct = cg.StructInitializer(TemperatureConfig,
+                                                    ("offset", current_temperature_config.get(CONF_OFFSET, 0.0)),
+                                                    ("multiplier", current_temperature_config.get(CONF_MULTIPLIER, 1.0)),
+                                                    )
+            ct_matching_dp = await matching_datapoint_from_config(current_temperature_config.get(CONF_DATAPOINT), TEMPERATURE_DP_TYPES)
+        else:
+            ct_config_struct = cg.RawExpression("{}")
+            ct_matching_dp = cg.RawExpression("{}")
 
-    if config[CONF_REPORTS_FAHRENHEIT]:
-        cg.add(var.set_reports_fahrenheit())
+        cg.add(
+            var.configure_temperatures(tt_matching_dp, tt_config_struct,
+                                       ct_matching_dp, ct_config_struct,
+                                       temperature_config.get(CONF_HYSTERESIS), temperature_config.get(CONF_REPORTS_FAHRENHEIT))
+            )
 
     if preset_config := config.get(CONF_PRESET, {}):
         if boost_config := preset_config.get(CONF_BOOST, {}):

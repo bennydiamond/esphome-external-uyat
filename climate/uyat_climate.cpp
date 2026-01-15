@@ -30,7 +30,7 @@ void UyatClimate::on_sleep_value(const bool value)
 {
   ESP_LOGV(UyatClimate::TAG, "Sleep of %s is now %s", this->get_object_id().c_str(), ONOFF(value));
   this->preset = this->presets_.get_active_preset();
-  this->compute_target_temperature_();
+  this->select_target_temperature_to_report_();
   this->publish_state();
 }
 
@@ -38,7 +38,7 @@ void UyatClimate::on_eco_value(const bool value)
 {
   ESP_LOGV(UyatClimate::TAG, "Eco of %s is now %s", this->get_object_id().c_str(), ONOFF(value));
   this->preset = this->presets_.get_active_preset();
-  this->compute_target_temperature_();
+  this->select_target_temperature_to_report_();
   this->publish_state();
 }
 
@@ -46,29 +46,22 @@ void UyatClimate::on_boost_value(const bool value)
 {
   ESP_LOGV(UyatClimate::TAG, "Boost of %s is now %s", this->get_object_id().c_str(), ONOFF(value));
   this->preset = this->presets_.get_active_preset();
-  this->compute_target_temperature_();
+  this->select_target_temperature_to_report_();
   this->publish_state();
 }
 
 void UyatClimate::on_target_temperature_value(const float value)
 {
-  this->manual_temperature_ = value;
-  if (this->reports_fahrenheit_) {
-    this->manual_temperature_ = (this->manual_temperature_ - 32) * 5 / 9;
-  }
+  ESP_LOGV(UyatClimate::TAG, "Target temperature of %s reported: %.1f", this->get_object_id().c_str(), value);
 
-  ESP_LOGV(UyatClimate::TAG, "Manual Target Temperature of %s is now %.1f", this->get_object_id().c_str(), this->manual_temperature_);
-  this->compute_target_temperature_();
+  this->select_target_temperature_to_report_();
   this->compute_state_();
   this->publish_state();
 }
 
 void UyatClimate::on_current_temperature_value(const float value)
 {
-  this->current_temperature = value;
-  if (this->reports_fahrenheit_) {
-    this->current_temperature = (this->current_temperature - 32) * 5 / 9;
-  }
+  this->current_temperature = *(this->temperatures_->get_current_temperature());
 
   ESP_LOGV(UyatClimate::TAG, "Current Temperature of %s is now %.1f", this->get_object_id().c_str(), this->current_temperature);
   this->compute_state_();
@@ -98,11 +91,12 @@ void UyatClimate::setup() {
   if (this->dp_active_state_.has_value()) {
     this->dp_active_state_->dp_number.init(*(this->parent_));
   }
-  if (this->dp_target_temperature_.has_value()) {
-    this->dp_target_temperature_->init(*(this->parent_));
-  }
-  if (this->dp_current_temperature_.has_value()) {
-    this->dp_current_temperature_->init(*(this->parent_));
+  if (this->temperatures_.has_value()) {
+    this->temperatures_->dp_target.init(*(this->parent_));
+    if (this->temperatures_->dp_current)
+    {
+      this->temperatures_->dp_current->init(*(this->parent_));
+    }
   }
 
   this->presets_.init(*(this->parent_));
@@ -201,13 +195,11 @@ void UyatClimate::control(const climate::ClimateCall &call) {
   control_swing_mode_(call);
   control_fan_mode_(call);
 
-  if (call.get_target_temperature().has_value()) {
-    float target_temperature = *call.get_target_temperature();
-    if (this->reports_fahrenheit_)
-      target_temperature = (target_temperature * 9 / 5) + 32;
-
-    ESP_LOGV(UyatClimate::TAG, "Setting target temperature: %.1f", target_temperature);
-    this->dp_target_temperature_->set_value(target_temperature);
+  if (this->temperatures_.has_value())
+  {
+    if (call.get_target_temperature().has_value()) {
+      this->temperatures_->set_target_temperature(*call.get_target_temperature());
+    }
   }
 
   if (call.get_preset().has_value()) {
@@ -313,7 +305,7 @@ void UyatClimate::control_fan_mode_(const climate::ClimateCall &call) {
 climate::ClimateTraits UyatClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
-  if (this->dp_current_temperature_.has_value()) {
+  if ((this->temperatures_) && (this->temperatures_->dp_current.has_value())) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
 
@@ -370,11 +362,11 @@ void UyatClimate::dump_config() {
   if (this->dp_active_state_.has_value()) {
     ESP_LOGCONFIG(UyatClimate::TAG, "  Active state is %s", this->dp_active_state_->dp_number.get_config().to_string().c_str());
   }
-  if (this->dp_target_temperature_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Target Temperature is %s", this->dp_target_temperature_->get_config().to_string().c_str());
-  }
-  if (this->dp_current_temperature_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Current Temperature is %s", this->dp_current_temperature_->get_config().to_string().c_str());
+  if (this->temperatures_.has_value()) {
+    ESP_LOGCONFIG(UyatClimate::TAG, "  Target Temperature is %s", this->temperatures_->dp_target.get_config().to_string().c_str());
+    if (this->temperatures_->dp_current.has_value()) {
+      ESP_LOGCONFIG(UyatClimate::TAG, "  Current Temperature is %s", this->temperatures_->dp_current->get_config().to_string().c_str());
+    }
   }
   LOG_PIN("  Heating State Pin: ", this->active_state_pins_.heating);
   LOG_PIN("  Cooling State Pin: ", this->active_state_pins_.cooling);
@@ -419,14 +411,21 @@ void UyatClimate::compute_fanmode_() {
   }
 }
 
-void UyatClimate::compute_target_temperature_() {
+void UyatClimate::select_target_temperature_to_report_() {
   if (auto preset_temperature = this->presets_.get_active_preset_temperature())
   {
     this->target_temperature = *preset_temperature;
   }
   else
   {
-    this->target_temperature = this->manual_temperature_;
+    if (this->temperatures_)
+    {
+      const auto manual_temperature = this->temperatures_->get_target_temperature();
+      if (manual_temperature)
+      {
+        this->target_temperature = *manual_temperature;
+      }
+    }
   }
 }
 
@@ -477,15 +476,18 @@ void UyatClimate::compute_state_() {
       }
     }
   } else {
-    // Fallback to active state calc based on temp and hysteresis
-    const float temp_diff = this->target_temperature - this->current_temperature;
-    if (std::abs(temp_diff) > this->hysteresis_) {
-      if (this->supports_heat_ && temp_diff > 0) {
-        target_action = climate::CLIMATE_ACTION_HEATING;
-        this->mode = climate::CLIMATE_MODE_HEAT;
-      } else if (this->supports_cool_ && temp_diff < 0) {
-        target_action = climate::CLIMATE_ACTION_COOLING;
-        this->mode = climate::CLIMATE_MODE_COOL;
+    if (this->temperatures_.has_value())
+    {
+      // Fallback to active state calc based on temp and hysteresis
+      const float temp_diff = this->target_temperature - this->current_temperature;
+      if (std::abs(temp_diff) > this->temperatures_->hysteresis) {
+        if (this->supports_heat_ && temp_diff > 0) {
+          target_action = climate::CLIMATE_ACTION_HEATING;
+          this->mode = climate::CLIMATE_MODE_HEAT;
+        } else if (this->supports_cool_ && temp_diff < 0) {
+          target_action = climate::CLIMATE_ACTION_COOLING;
+          this->mode = climate::CLIMATE_MODE_COOL;
+        }
       }
     }
   }
