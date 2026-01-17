@@ -30,6 +30,7 @@ CONF_SCALE = "scale"
 CONF_MULTIPLIER = "multiplier"
 
 UyatNumber = uyat_ns.class_("UyatNumber", number.Number, cg.Component)
+UyatNumberConfig = uyat_ns.struct("UyatNumber::Config")
 
 NUMBER_DP_TYPES = {
     "allowed": [
@@ -85,7 +86,20 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]))
+    multiplier = 1.0
+    if CONF_MULTIPLIER in config:
+        multiplier = config[CONF_MULTIPLIER]
+    elif CONF_SCALE in config:
+        multiplier = 10 ** config[CONF_SCALE]
+
+    var = cg.new_Pvariable(config[CONF_ID],
+                           await cg.get_variable(config[CONF_UYAT_ID]),
+                           cg.StructInitializer(UyatNumberConfig,
+                                                ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], NUMBER_DP_TYPES)),
+                                                ("offset", config[CONF_OFFSET]),
+                                                ("multiplier", multiplier),
+                                                )
+                          )
     await cg.register_component(var, config)
     await number.register_number(
         var,
@@ -95,10 +109,3 @@ async def to_code(config):
         step=config[CONF_STEP],
     )
 
-    multiplier = 1.0
-    if CONF_MULTIPLIER in config:
-        multiplier = config[CONF_MULTIPLIER]
-    elif CONF_SCALE in config:
-        multiplier = 10 ** config[CONF_SCALE]
-
-    cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], NUMBER_DP_TYPES), config[CONF_OFFSET], multiplier))

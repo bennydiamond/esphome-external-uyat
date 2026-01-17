@@ -6,32 +6,31 @@
 namespace esphome {
 namespace uyat {
 
-static const char *const TAG = "uyat.number";
+UyatNumber::UyatNumber(Uyat *parent, Config config):
+parent_(*parent),
+dp_number_([this](const float value){this->on_value(value);},
+            std::move(config.matching_dp),
+            config.offset, config.multiplier)
+{}
 
 void UyatNumber::setup() {
-  if (!this->parent_)
-  {
-     ESP_LOGE(TAG, "Uyat parent not set for %s", this->get_object_id().c_str());
-     return;
-  }
-
-  this->dp_number_->init(*(this->parent_));
+  this->dp_number_.init(this->parent_);
 }
 
 void UyatNumber::control(float value) {
-  ESP_LOGV(TAG, "Setting number %s to %f", get_object_id().c_str(), value);
-  this->dp_number_->set_value(value);
+  ESP_LOGV(UyatNumber::TAG, "Setting number %s to %f", get_object_id().c_str(), value);
+  this->dp_number_.set_value(value);
   this->publish_state(value);
 }
 
 void UyatNumber::dump_config() {
   LOG_NUMBER("", "Uyat Number", this);
-  ESP_LOGCONFIG(TAG, "  Number %s is %s", get_object_id().c_str(), this->dp_number_? this->dp_number_->get_config().to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(UyatNumber::TAG, "  Number %s is %s", get_object_id().c_str(), this->dp_number_.get_config().to_string().c_str());
 }
 
 void UyatNumber::on_value(const float value)
 {
-  ESP_LOGV(TAG, "MCU reported %s is: %.4f", get_object_id().c_str(), value);
+  ESP_LOGV(UyatNumber::TAG, "MCU reported %s is: %.4f", get_object_id().c_str(), value);
   this->publish_state(value);
 }
 
