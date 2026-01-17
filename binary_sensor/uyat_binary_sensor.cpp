@@ -5,25 +5,28 @@
 namespace esphome {
 namespace uyat {
 
-static const char *const TAG = "uyat.binary_sensor";
+UyatBinarySensor::UyatBinarySensor(Uyat* parent, Config config):
+parent_(*parent),
+dp_binary_sensor_([this](const bool value){this->on_value(value);},
+                  std::move(config.sensor_dp),
+                  config.bit_number,
+                   // note: we could let DpBinarySensor handle invertions,
+                   // but with the binary_sensor has its own way to handle this using filters
+                  false)
+{}
 
 void UyatBinarySensor::setup() {
-  if (!this->parent_)
-  {
-     ESP_LOGE(TAG, "Uyat parent not set for %s", this->get_object_id().c_str());
-     return;
-  }
-  this->dp_binary_sensor_->init(*(this->parent_));
+  this->dp_binary_sensor_.init(this->parent_);
 }
 
 void UyatBinarySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Uyat Binary Sensor:");
-  ESP_LOGCONFIG(TAG, "  Binary Sensor %s is %s", get_object_id().c_str(), this->dp_binary_sensor_? this->dp_binary_sensor_->get_config().to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(UyatBinarySensor::TAG, "Uyat Binary Sensor:");
+  ESP_LOGCONFIG(UyatBinarySensor::TAG, "  Binary Sensor %s is %s", get_object_id().c_str(), this->dp_binary_sensor_.get_config().to_string().c_str());
 }
 
 void UyatBinarySensor::on_value(const bool value)
 {
-  ESP_LOGV(TAG, "MCU reported %s is: %s", get_object_id().c_str(), ONOFF(value));
+  ESP_LOGV(UyatBinarySensor::TAG, "MCU reported %s is: %s", get_object_id().c_str(), ONOFF(value));
   this->publish_state(value);
 }
 

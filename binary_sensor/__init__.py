@@ -26,6 +26,8 @@ UyatBinarySensor = uyat_ns.class_(
     "UyatBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
+UyatBinarySensorConfig = uyat_ns.struct("UyatBinarySensor::Config")
+
 BINARY_SENSOR_DP_TYPES = {
    "allowed": [
         DPTYPE_DETECT,
@@ -59,13 +61,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await binary_sensor.new_binary_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]))
-    await cg.register_component(var, config)
-
-    dp_config = config[CONF_DATAPOINT]
     if CONF_BIT_NUMBER in config:
         bit_number = config[CONF_BIT_NUMBER]-1
     else:
         bit_number = cg.RawExpression("{}")
 
-    cg.add(var.configure(await matching_datapoint_from_config(dp_config, BINARY_SENSOR_DP_TYPES), bit_number))
+    config_struct = cg.StructInitializer(UyatBinarySensorConfig,
+                                         ("sensor_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], BINARY_SENSOR_DP_TYPES)),
+                                         ("bit_number", bit_number))
+
+    var = await binary_sensor.new_binary_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
+    await cg.register_component(var, config)
+

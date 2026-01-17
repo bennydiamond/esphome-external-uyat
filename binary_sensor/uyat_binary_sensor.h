@@ -11,26 +11,27 @@ namespace uyat {
 
 class UyatBinarySensor : public binary_sensor::BinarySensor, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.binary_sensor";
+
   void on_value(const bool);
 
  public:
-  explicit UyatBinarySensor(Uyat* parent):
-  parent_(parent)
-  {}
 
+  struct Config
+  {
+    MatchingDatapoint sensor_dp;
+    std::optional<uint8_t> bit_number;
+  };
+
+  explicit UyatBinarySensor(Uyat* parent, Config config);
 
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint sensor_dp, const std::optional<uint8_t> bit_number = std::nullopt){
-    this->dp_binary_sensor_.emplace([this](const bool value){this->on_value(value);},
-                             std::move(sensor_dp),
-                             bit_number,
-                             false);
-  }
 
  protected:
-  Uyat *parent_;
-  std::optional<DpBinarySensor> dp_binary_sensor_;
+  Uyat& parent_;
+  DpBinarySensor dp_binary_sensor_;
 };
 
 }  // namespace uyat
