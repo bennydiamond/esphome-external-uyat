@@ -24,6 +24,7 @@ CODEOWNERS = ["@szupi_ipuzs"]
 CONF_TRIGGER_PAYLOAD = "trigger_payload"
 
 UyatButton = uyat_ns.class_("UyatButton", button.Button, cg.Component)
+UyatButtonConfig = uyat_ns.class_("UyatButton::Config")
 
 BUTTON_DP_TYPES = [
     DPTYPE_BOOL,
@@ -66,9 +67,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 async def to_code(config):
-    var = await button.new_button(config, await cg.get_variable(config[CONF_UYAT_ID]))
-    await cg.register_component(var, config)
-
     dp_config = config.get(CONF_DATAPOINT)
     dp_type = dp_config.get(CONF_DATAPOINT_TYPE, None)
     payload_config = dp_config.get(CONF_TRIGGER_PAYLOAD, None)
@@ -87,4 +85,9 @@ async def to_code(config):
     UyatDatapointStruct = cg.StructInitializer(
         UyatDatapoint, ("number", dp_config[CONF_NUMBER]), ("value", UyatDatapointValue)
     )
-    cg.add(var.set_trigger_payload(UyatDatapointStruct))
+
+    var = await button.new_button(config,
+                                  await cg.get_variable(config[CONF_UYAT_ID]),
+                                  cg.StructInitializer(UyatButtonConfig,
+                                                       ("trigger_payload", UyatDatapointStruct)))
+    await cg.register_component(var, config)
