@@ -22,6 +22,9 @@ class UyatSensorVAP : public sensor::Sensor, public Component {
   void on_value(const DpVAP::VAPValue&);
 
  public:
+  explicit UyatSensorVAP(Uyat *parent):
+  parent_(parent)
+  {}
 
   void setup() override;
   void dump_config() override;
@@ -30,8 +33,6 @@ class UyatSensorVAP : public sensor::Sensor, public Component {
     this->dp_vap_.emplace([this](const DpVAP::VAPValue& value){this->on_value(value);},
                              std::move(vap_dp));
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   Uyat *parent_;

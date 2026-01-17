@@ -344,11 +344,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 async def to_code(config):
-    var = await climate.new_climate(config)
+    var = await climate.new_climate(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
-
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
 
     cg.add(var.set_supported_modes(config[CONF_SUPPORTS_HEAT], config[CONF_SUPPORTS_COOL]))
 

@@ -14,6 +14,11 @@ class UyatBinarySensor : public binary_sensor::BinarySensor, public Component {
   void on_value(const bool);
 
  public:
+  explicit UyatBinarySensor(Uyat* parent):
+  parent_(parent)
+  {}
+
+
   void setup() override;
   void dump_config() override;
   void configure(MatchingDatapoint sensor_dp, const std::optional<uint8_t> bit_number = std::nullopt){
@@ -22,8 +27,6 @@ class UyatBinarySensor : public binary_sensor::BinarySensor, public Component {
                              bit_number,
                              false);
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   Uyat *parent_;

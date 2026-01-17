@@ -168,7 +168,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await cover.new_cover(config)
+    var = await cover.new_cover(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
 
     if control_config := config.get(CONF_CONTROL):
@@ -203,5 +203,3 @@ async def to_code(config):
                                 uncalibrated_value))
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))

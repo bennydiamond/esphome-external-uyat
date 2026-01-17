@@ -9,10 +9,12 @@ namespace uyat {
 
 class UyatButton : public button::Button, public Component {
  public:
+  explicit UyatButton(Uyat *parent):
+  parent_(parent)
+  {}
+
   void dump_config() override;
   void set_trigger_payload(const UyatDatapoint& trigger_payload) { this->trigger_payload_ = trigger_payload; }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   void press_action() override;

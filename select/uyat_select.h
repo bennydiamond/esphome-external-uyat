@@ -17,6 +17,10 @@ class UyatSelect : public select::Select, public Component {
   void on_value(const float);
   std::optional<std::size_t> translate(const uint32_t number_value) const;
  public:
+  explicit UyatSelect(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
 
@@ -26,7 +30,6 @@ class UyatSelect : public select::Select, public Component {
                              0, 1.0f);
   }
 
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_select_mappings(std::vector<uint32_t> mappings) { this->mappings_ = std::move(mappings); }
 

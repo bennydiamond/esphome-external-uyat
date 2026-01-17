@@ -101,12 +101,9 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
-
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
 
     if config[CONF_TYPE] == CONF_TYPE_NUMBER:
         cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SENSOR_DP_TYPES)))

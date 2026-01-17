@@ -20,6 +20,11 @@ class UyatLight : public Component, public light::LightOutput {
   void on_color_value(const DpColor::Value&);
 
  public:
+  explicit UyatLight(Uyat *parent)
+  parent_(parent)
+  {}
+
+
   void setup() override;
   void dump_config() override;
   void configure_dimmer(MatchingDatapoint dimmer_dp, const uint32_t min_value, const uint32_t max_value, const bool inverted, std::optional<MatchingDatapoint> min_value_dp = std::nullopt) {
@@ -66,8 +71,6 @@ class UyatLight : public Component, public light::LightOutput {
     this->cold_white_temperature_ = cold_white_temperature;
     this->warm_white_temperature_ = warm_white_temperature;
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
   void set_color_interlock(bool color_interlock) { this->color_interlock_ = color_interlock; }
 

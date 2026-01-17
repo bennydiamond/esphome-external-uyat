@@ -14,6 +14,10 @@ class UyatSwitch : public switch_::Switch, public Component {
   void on_value(const bool);
 
  public:
+  explicit UyatSwitch(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
   void configure(MatchingDatapoint switch_dp){
@@ -21,8 +25,6 @@ class UyatSwitch : public switch_::Switch, public Component {
                              std::move(switch_dp),
                              false);
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   void write_state(bool state) override;

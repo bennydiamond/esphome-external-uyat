@@ -85,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
     await number.register_number(
         var,
@@ -94,9 +94,6 @@ async def to_code(config):
         max_value=config[CONF_MAX_VALUE],
         step=config[CONF_STEP],
     )
-
-    parent = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(parent))
 
     multiplier = 1.0
     if CONF_MULTIPLIER in config:

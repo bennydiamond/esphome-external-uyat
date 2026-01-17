@@ -14,6 +14,10 @@ class UyatTextSensor : public text_sensor::TextSensor, public Component {
   void on_value(const std::string&);
 
  public:
+  explicit UyatTextSensor(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
   void configure(MatchingDatapoint text_dp, const TextDataEncoding encoding){
@@ -21,8 +25,6 @@ class UyatTextSensor : public text_sensor::TextSensor, public Component {
                             std::move(text_dp),
                             encoding);
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   Uyat *parent_;

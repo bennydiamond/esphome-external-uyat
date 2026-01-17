@@ -15,6 +15,10 @@ class UyatTextSensorMapped : public text_sensor::TextSensor, public Component {
   std::string translate(const uint32_t number_value) const;
 
  public:
+  explicit UyatTextSensorMapped(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
   void configure(MatchingDatapoint number_dp){
@@ -26,8 +30,6 @@ class UyatTextSensorMapped : public text_sensor::TextSensor, public Component {
   }
   void set_mappings(std::vector<std::pair<uint32_t, std::string>> mappings) { this->mappings_ = std::move(mappings); }
   void add_mapping(const uint32_t number_value, const std::string &text_value) { this->mappings_.emplace_back(number_value, text_value); }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   Uyat *parent_;

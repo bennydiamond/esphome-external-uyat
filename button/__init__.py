@@ -66,11 +66,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 async def to_code(config):
-    var = await button.new_button(config)
+    var = await button.new_button(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
-
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
 
     dp_config = config.get(CONF_DATAPOINT)
     dp_type = dp_config.get(CONF_DATAPOINT_TYPE, None)

@@ -52,9 +52,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await switch.new_switch(config)
+    var = await switch.new_switch(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
     cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)))

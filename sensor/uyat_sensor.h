@@ -16,6 +16,10 @@ class UyatSensor : public sensor::Sensor, public Component {
   void on_value(const float);
 
  public:
+  explicit UyatSensor(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
   void configure(MatchingDatapoint number_dp){
@@ -25,8 +29,6 @@ class UyatSensor : public sensor::Sensor, public Component {
     std::move(number_dp),
     0, 1.0f);
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
   Uyat *parent_;

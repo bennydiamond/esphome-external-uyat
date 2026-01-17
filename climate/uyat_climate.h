@@ -51,6 +51,10 @@ class UyatClimate : public climate::Climate, public Component {
 
  public:
 
+  UyatClimate(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -139,8 +143,6 @@ class UyatClimate : public climate::Climate, public Component {
                              std::move(sleep_dp),
                              inverted);
   }
-
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
 
  protected:
 

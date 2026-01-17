@@ -182,7 +182,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
     await light.register_light(var, config)
 
@@ -218,5 +218,3 @@ async def to_code(config):
                                               ))
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))

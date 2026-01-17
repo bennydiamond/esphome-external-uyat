@@ -32,6 +32,10 @@ class UyatCover : public cover::Cover, public Component {
   void on_position_value(const float);
 
  public:
+  explicit UyatCover(Uyat *parent):
+  parent_(parent)
+  {}
+
   void setup() override;
   void dump_config() override;
   void configure_control(MatchingDatapoint matching_dp, const ControlDpValueMapping& mapping) {
@@ -72,7 +76,6 @@ class UyatCover : public cover::Cover, public Component {
 
     this->position_.uncalibrated_value = uncalibrated_value;
   }
-  void set_uyat_parent(Uyat *parent) { this->parent_ = parent; }
   void set_restore_mode(UyatCoverRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
  protected:

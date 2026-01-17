@@ -117,11 +117,8 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 async def to_code(config):
-    var = await text_sensor.new_text_sensor(config)
+    var = await text_sensor.new_text_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
-
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
 
     if config[CONF_TYPE] == CONF_TYPE_TEXT:
         cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], TEXT_SENSOR_DP_TYPES), config[CONF_ENCODING]))

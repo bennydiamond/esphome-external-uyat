@@ -74,11 +74,9 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     options_map = config[CONF_OPTIONS]
-    var = await select.new_select(config, options=list(options_map.values()))
+    var = await select.new_select(config, await cg.get_variable(config[CONF_UYAT_ID]), options=list(options_map.values()))
     await cg.register_component(var, config)
     cg.add(var.set_select_mappings(list(options_map.keys())))
-    parent = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(parent))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
     cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SELECT_DP_TYPES)))

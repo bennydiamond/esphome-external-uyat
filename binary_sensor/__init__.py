@@ -59,11 +59,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await binary_sensor.new_binary_sensor(config)
+    var = await binary_sensor.new_binary_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]))
     await cg.register_component(var, config)
-
-    paren = await cg.get_variable(config[CONF_UYAT_ID])
-    cg.add(var.set_uyat_parent(paren))
 
     dp_config = config[CONF_DATAPOINT]
     if CONF_BIT_NUMBER in config:
