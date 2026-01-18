@@ -24,6 +24,7 @@ DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
 
 UyatSelect = uyat_ns.class_("UyatSelect", select.Select, cg.Component)
+UyatSelectConfig = uyat_ns.struct("UyatSelect::Config")
 
 SELECT_DP_TYPES = {
    "allowed": [
@@ -74,9 +75,11 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     options_map = config[CONF_OPTIONS]
-    var = await select.new_select(config, await cg.get_variable(config[CONF_UYAT_ID]), options=list(options_map.values()))
+    var = await select.new_select(config,
+                                  await cg.get_variable(config[CONF_UYAT_ID]),
+                                  cg.StructInitializer(UyatSelectConfig,
+                                                       ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SELECT_DP_TYPES)),
+                                                       ("optimistic", config[CONF_OPTIMISTIC]),
+                                                       ("mappings", list(options_map.keys()))),
+                                  options=list(options_map.values()))
     await cg.register_component(var, config)
-    cg.add(var.set_select_mappings(list(options_map.keys())))
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-
-    cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SELECT_DP_TYPES)))

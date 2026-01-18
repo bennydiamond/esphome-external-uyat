@@ -14,32 +14,32 @@ namespace uyat {
 
 class UyatSelect : public select::Select, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.select";
+
   void on_value(const float);
   std::optional<std::size_t> translate(const uint32_t number_value) const;
  public:
-  explicit UyatSelect(Uyat *parent):
-  parent_(parent)
-  {}
+
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+    bool optimistic;
+    std::vector<uint32_t> mappings;
+  };
+
+  explicit UyatSelect(Uyat *parent, Config config);
 
   void setup() override;
   void dump_config() override;
 
-  void configure(MatchingDatapoint select_dp){
-    this->dp_number_.emplace([this](const float value){this->on_value(value);},
-                             std::move(select_dp),
-                             0, 1.0f);
-  }
-
-  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_select_mappings(std::vector<uint32_t> mappings) { this->mappings_ = std::move(mappings); }
-
  protected:
   void control(size_t index) override;
 
-  Uyat *parent_;
-  bool optimistic_ = false;
+  Uyat& parent_;
+  bool optimistic_;
   std::vector<uint32_t> mappings_;
-  std::optional<DpNumber> dp_number_;
+  DpNumber dp_number_;
 };
 
 }  // namespace uyat
