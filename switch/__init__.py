@@ -20,6 +20,7 @@ DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
 
 UyatSwitch = uyat_ns.class_("UyatSwitch", switch.Switch, cg.Component)
+UyatSwitchConfig = uyat_ns.struct("UyatSwitch::Config")
 
 SWITCH_DP_TYPES = {
    "allowed": [
@@ -52,7 +53,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await switch.new_switch(config, await cg.get_variable(config[CONF_UYAT_ID]))
+    config_struct = cg.StructInitializer(UyatSwitchConfig,
+                                         ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)))
+    var = await switch.new_switch(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
     await cg.register_component(var, config)
-
-    cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)))

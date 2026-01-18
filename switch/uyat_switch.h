@@ -11,26 +11,27 @@ namespace uyat {
 
 class UyatSwitch : public switch_::Switch, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.switch";
+
   void on_value(const bool);
 
  public:
-  explicit UyatSwitch(Uyat *parent):
-  parent_(parent)
-  {}
 
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+  };
+
+  explicit UyatSwitch(Uyat *parent, Config config);
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint switch_dp){
-    this->dp_switch_.emplace([this](const bool value){this->on_value(value);},
-                             std::move(switch_dp),
-                             false);
-  }
 
  protected:
   void write_state(bool state) override;
 
-  Uyat *parent_;
-  std::optional<DpSwitch> dp_switch_;
+  Uyat& parent_;
+  DpSwitch dp_switch_;
 };
 
 }  // namespace uyat

@@ -7,27 +7,31 @@
 namespace esphome {
 namespace uyat {
 
-static const char *const TAG = "uyat.switch";
+UyatSwitch::UyatSwitch(Uyat *parent, Config config):
+parent_(*parent),
+dp_switch_([this](const bool value){this->on_value(value);},
+            std::move(config.matching_dp),
+            false)
+{}
 
 void UyatSwitch::setup() {
-  assert(this->parent_);
-  this->dp_switch_->init(*(this->parent_));
+  this->dp_switch_.init(this->parent_);
 }
 
 void UyatSwitch::write_state(bool state) {
-  ESP_LOGV(TAG, "Setting %s to %s", get_object_id().c_str(), ONOFF(state));
-  this->dp_switch_->set_value(state);
+  ESP_LOGV(UyatSwitch::TAG, "Setting %s to %s", get_object_id().c_str(), ONOFF(state));
+  this->dp_switch_.set_value(state);
   this->publish_state(state);
 }
 
 void UyatSwitch::dump_config() {
   LOG_SWITCH("", "Uyat Switch", this);
-  ESP_LOGCONFIG(TAG, "  Switch %s is %s", get_object_id().c_str(), this->dp_switch_? this->dp_switch_->get_config().to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(UyatSwitch::TAG, "  Switch %s is %s", get_object_id().c_str(), this->dp_switch_.get_config().to_string().c_str());
 }
 
 void UyatSwitch::on_value(const bool value)
 {
-  ESP_LOGV(TAG, "MCU reported %s is: %s", get_object_id().c_str(), ONOFF(value));
+  ESP_LOGV(UyatSwitch::TAG, "MCU reported %s is: %s", get_object_id().c_str(), ONOFF(value));
   this->publish_state(value);
 }
 
