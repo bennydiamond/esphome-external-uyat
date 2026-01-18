@@ -6,21 +6,25 @@
 namespace esphome {
 namespace uyat {
 
-static const char *const TAG = "uyat.text_sensor";
+UyatTextSensor::UyatTextSensor(Uyat *parent, Config config):
+parent_(*parent),
+dp_text_([this](const std::string& value){this->on_value(value);},
+          std::move(config.matching_dp),
+          config.encoding)
+{}
 
 void UyatTextSensor::setup() {
-  assert(this->parent_);
-  this->dp_text_->init(*(this->parent_));
+  this->dp_text_.init(this->parent_);
 }
 
 void UyatTextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Uyat Text Sensor:");
-  ESP_LOGCONFIG(TAG, "  Text Sensor %s is %s", get_object_id().c_str(), this->dp_text_? this->dp_text_->get_config().to_string().c_str() : "misconfigured!");
+  ESP_LOGCONFIG(UyatTextSensor::TAG, "Uyat Text Sensor:");
+  ESP_LOGCONFIG(UyatTextSensor::TAG, "  Text Sensor %s is %s", get_object_id().c_str(), this->dp_text_.get_config().to_string().c_str());
 }
 
 void UyatTextSensor::on_value(const std::string& value)
 {
-  ESP_LOGV(TAG, "MCU reported %s is: %s", get_object_id().c_str(), value.c_str());
+  ESP_LOGV(UyatTextSensor::TAG, "MCU reported %s is: %s", get_object_id().c_str(), value.c_str());
   this->publish_state(value);
 }
 

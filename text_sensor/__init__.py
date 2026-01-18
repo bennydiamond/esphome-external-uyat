@@ -24,6 +24,8 @@ CODEOWNERS = ["@szupi_ipuzs"]
 UyatTextSensor = uyat_ns.class_("UyatTextSensor", text_sensor.TextSensor, cg.Component)
 UyatTextSensorMapped = uyat_ns.class_("UyatTextSensorMapped", text_sensor.TextSensor, cg.Component)
 UyatTextDataEncoding = uyat_ns.enum("TextDataEncoding", is_class=True)
+UyatTextSensorConfig = uyat_ns.struct("UyatTextSensor::Config")
+UyatTextSensorMappedConfig = uyat_ns.struct("UyatTextSensorMapped::Config")
 
 CONF_ENCODING = "encoding"
 CONF_ENCODING_PLAIN = "plain"
@@ -117,15 +119,21 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 async def to_code(config):
-    var = await text_sensor.new_text_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]))
-    await cg.register_component(var, config)
 
     if config[CONF_TYPE] == CONF_TYPE_TEXT:
-        cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], TEXT_SENSOR_DP_TYPES), config[CONF_ENCODING]))
+        config_struct = cg.StructInitializer(UyatTextSensorConfig,
+                                             ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], TEXT_SENSOR_DP_TYPES)),
+                                             ("encoding", config[CONF_ENCODING]))
+        var = await text_sensor.new_text_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
     if config[CONF_TYPE] == CONF_TYPE_MAPPED:
-        cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], MAPPED_TEXT_SENSOR_DP_TYPES)))
         options_map = config[CONF_OPTIONS]
-        for option, mapping in options_map.items():
-            cg.add(var.add_mapping(option, mapping))
-            # todo: how to add whole mapping in one call?
-#        cg.add(var.set_select_mappings(list(options_map.keys())))
+        mapping = list()
+        for option, value in options_map.items():
+            mapping.append((option, value))
+
+        config_struct = cg.StructInitializer(UyatTextSensorMappedConfig,
+                                             ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], MAPPED_TEXT_SENSOR_DP_TYPES)),
+                                             ("mapping", cg.ArrayInitializer(mapping)))
+        var = await text_sensor.new_text_sensor(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
+
+    await cg.register_component(var, config)

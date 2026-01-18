@@ -11,24 +11,26 @@ namespace uyat {
 
 class UyatTextSensor : public text_sensor::TextSensor, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.text_sensor";
+
   void on_value(const std::string&);
 
  public:
-  explicit UyatTextSensor(Uyat *parent):
-  parent_(parent)
-  {}
 
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+    TextDataEncoding encoding;
+  };
+
+  explicit UyatTextSensor(Uyat *parent, Config config);
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint text_dp, const TextDataEncoding encoding){
-    this->dp_text_.emplace([this](const std::string& value){this->on_value(value);},
-                            std::move(text_dp),
-                            encoding);
-  }
 
  protected:
-  Uyat *parent_;
-  std::optional<DpText> dp_text_;
+  Uyat& parent_;
+  DpText dp_text_;
 };
 
 }  // namespace uyat

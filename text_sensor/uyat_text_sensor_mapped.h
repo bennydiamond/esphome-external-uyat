@@ -11,30 +11,28 @@ namespace uyat {
 
 class UyatTextSensorMapped : public text_sensor::TextSensor, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.text_sensor_mapped";
+
   void on_value(const float);
   std::string translate(const uint32_t number_value) const;
 
  public:
-  explicit UyatTextSensorMapped(Uyat *parent):
-  parent_(parent)
-  {}
 
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+    std::vector<std::pair<uint32_t, std::string>> mapping;
+  };
+
+  explicit UyatTextSensorMapped(Uyat *parent, Config config);
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint number_dp){
-    this->dp_number_.emplace([this](const float value){
-      this->on_value(value);
-    },
-    std::move(number_dp),
-    0, 1.0f);
-  }
-  void set_mappings(std::vector<std::pair<uint32_t, std::string>> mappings) { this->mappings_ = std::move(mappings); }
-  void add_mapping(const uint32_t number_value, const std::string &text_value) { this->mappings_.emplace_back(number_value, text_value); }
 
  protected:
-  Uyat *parent_;
-  std::optional<DpNumber> dp_number_;
-  std::vector<std::pair<uint32_t, std::string>> mappings_;
+  Uyat& parent_;
+  DpNumber dp_number_;
+  const std::vector<std::pair<uint32_t, std::string>> mapping_;
 };
 
 }  // namespace uyat
