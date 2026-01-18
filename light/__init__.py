@@ -26,6 +26,11 @@ CONF_COLOR = "color"
 CONF_WHITE_TEMPERATURE = "white_temperature"
 
 UyatColorType = uyat_ns.enum("UyatColorType", is_class=True)
+UyatLightConfigDimmer = uyat_ns.struct("UyatLight::ConfigDimmer")
+UyatLightConfigSwitch = uyat_ns.struct("UyatLight::ConfigSwitch")
+UyatLightConfigColor = uyat_ns.struct("UyatLight::ConfigColor")
+UyatLightConfigWhiteTemperature = uyat_ns.struct("UyatLight::ConfigWhiteTemperature")
+UyatLightConfig = uyat_ns.struct("UyatLight::Config")
 
 COLOR_TYPES = {
     "RGB": UyatColorType.RGB,
@@ -182,39 +187,57 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], await cg.get_variable(config[CONF_UYAT_ID]))
-    await cg.register_component(var, config)
-    await light.register_light(var, config)
-
     if CONF_DIMMER in config:
         dimmer_config = config[CONF_DIMMER]
         if CONF_MIN_VALUE_DATAPOINT in config:
-            cg.add(var.configure_dimmer(
-                                        await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES),
-                                        dimmer_config[CONF_MIN_VALUE],
-                                        dimmer_config[CONF_MAX_VALUE],
-                                        dimmer_config[CONF_INVERTED],
-                                        await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)))
+            min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
         else:
-            cg.add(var.configure_dimmer(
-                                        await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES),
-                                        dimmer_config[CONF_MIN_VALUE],
-                                        dimmer_config[CONF_MAX_VALUE],
-                                        dimmer_config[CONF_INVERTED]))
+            min_value_dp = cg.RawExpression("{}")
+
+        dimmer_conf_struct = cg.StructInitializer(UyatLightConfigDimmer,
+                                                  ("dimmer_dp", await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES)),
+                                                  ("min_value", dimmer_config[CONF_MIN_VALUE]),
+                                                  ("max_value", dimmer_config[CONF_MAX_VALUE]),
+                                                  ("inverted", dimmer_config[CONF_INVERTED]),
+                                                  ("min_value_dp", min_value_dp))
+    else:
+        dimmer_conf_struct = cg.RawExpression("{}")
+
     if CONF_SWITCH in config:
         switch_config = config[CONF_SWITCH]
-        cg.add(var.configure_switch(await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES), switch_config[CONF_INVERTED]))
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+    else:
+        switch_conf_struct = cg.RawExpression("{}")
+
     if CONF_COLOR in config:
         color_config = config[CONF_COLOR]
-        cg.add(var.configure_color(await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES), color_config[CONF_TYPE]))
+        color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
+                                                 ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
+                                                 ("color_type", color_config[CONF_TYPE]))
+    else:
+        color_conf_struct = cg.RawExpression("{}")
+
     if CONF_WHITE_TEMPERATURE in config:
         white_temperature_config = config[CONF_WHITE_TEMPERATURE]
-        cg.add(var.configure_white_temperature(await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES),
-                                               white_temperature_config[CONF_MIN_VALUE],
-                                               white_temperature_config[CONF_MAX_VALUE],
-                                               white_temperature_config[CONF_INVERTED],
-                                               white_temperature_config[CONF_COLD_WHITE_COLOR_TEMPERATURE],
-                                               white_temperature_config[CONF_WARM_WHITE_COLOR_TEMPERATURE]
-                                              ))
+        white_temperature_conf_struct = cg.StructInitializer(UyatLightConfigWhiteTemperature,
+                                                             ("white_temperature_dp", await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES)),
+                                                             ("min_value", white_temperature_config[CONF_MIN_VALUE]),
+                                                             ("max_value", white_temperature_config[CONF_MAX_VALUE]),
+                                                             ("inverted", white_temperature_config[CONF_INVERTED]),
+                                                             ("cold_white_temperature", white_temperature_config[CONF_COLD_WHITE_COLOR_TEMPERATURE]),
+                                                             ("warm_white_temperature", white_temperature_config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
+    else:
+        white_temperature_conf_struct = cg.RawExpression("{}")
 
-    cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
+    full_config_struct = cg.StructInitializer(UyatLightConfig,
+                                              ("dimmer_config", dimmer_conf_struct),
+                                              ("switch_config", switch_conf_struct),
+                                              ("color_config", color_conf_struct),
+                                              ("wt_config", white_temperature_conf_struct),
+                                              ("color_interlock", config[CONF_COLOR_INTERLOCK]))
+
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], await cg.get_variable(config[CONF_UYAT_ID]), full_config_struct)
+    await cg.register_component(var, config)
+    await light.register_light(var, config)

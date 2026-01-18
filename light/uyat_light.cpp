@@ -6,42 +6,102 @@
 
 namespace esphome::uyat {
 
-static const char *const TAG = "uyat.light";
+UyatLight::UyatLight(Uyat *parent, Config config):
+parent_(*parent),
+color_interlock_(config.color_interlock)
+{
+  if (config.dimmer_config)
+  {
+    this->configure_dimmer(*config.dimmer_config);
+  }
+  if (config.switch_config)
+  {
+    this->configure_switch(*config.switch_config);
+  }
+  if (config.color_config)
+  {
+    this->configure_color(*config.color_config);
+  }
+  if (config.wt_config)
+  {
+    this->configure_white_temperature(*config.wt_config);
+  }
+}
+
+void UyatLight::configure_dimmer(ConfigDimmer config) {
+  this->dimmer_.emplace(
+                        DpDimmer{
+                          [this](const float brightness_percent){ this->on_dimmer_value(brightness_percent); },
+                          std::move(config.dimmer_dp),
+                          config.min_value, config.max_value,
+                          config.inverted
+                        },
+                        std::nullopt
+                        );
+  if (config.min_value_dp)
+  {
+    this->dimmer_->min_value_number.emplace(
+      [](auto){}, // ignore (write only)
+      std::move(*config.min_value_dp),
+      0.0f, 1.0f
+    );
+  }
+}
+
+void UyatLight::configure_switch(ConfigSwitch config) {
+  this->dp_switch_.emplace([this](const bool value){ this->on_switch_value(value);},
+                            std::move(config.switch_dp),
+                            config.inverted);
+}
+void UyatLight::configure_color(ConfigColor config){
+  this->dp_color_.emplace([this](const DpColor::Value& value){ this->on_color_value(value);},
+                            std::move(config.color_dp),
+                            config.color_type);
+}
+void UyatLight::configure_white_temperature(ConfigWhiteTemperature config) {
+  this->dp_white_temperature_.emplace([this](const float brightness_percent){ this->on_white_temperature_value(brightness_percent); },
+                        std::move(config.white_temperature_dp),
+                        config.min_value, config.max_value,
+                        config.inverted
+                      );
+  this->cold_white_temperature_ = config.cold_white_temperature;
+  this->warm_white_temperature_ = config.warm_white_temperature;
+}
 
 void UyatLight::setup() {
   if (this->dp_white_temperature_.has_value()) {
-    this->dp_white_temperature_->init(*(this->parent_));
+    this->dp_white_temperature_->init(this->parent_);
   }
   if (this->dimmer_.has_value()) {
-    this->dimmer_->dimmer.init(*(this->parent_));
+    this->dimmer_->dimmer.init(this->parent_);
     if (this->dimmer_->min_value_number)
     {
-      this->dimmer_->min_value_number->init(*(this->parent_));
+      this->dimmer_->min_value_number->init(this->parent_);
       this->dimmer_->min_value_number->set_value(this->dimmer_->dimmer.get_config().min_value);
     }
   }
   if (this->dp_switch_.has_value()) {
-    this->dp_switch_->init(*(this->parent_));
+    this->dp_switch_->init(this->parent_);
   }
   if (dp_color_.has_value()) {
-    this->dp_color_->init(*(this->parent_));
+    this->dp_color_->init(this->parent_);
   }
 }
 
 void UyatLight::dump_config() {
-  ESP_LOGCONFIG(TAG, "Uyat Dimmer:");
+  ESP_LOGCONFIG(UyatLight::TAG, "Uyat Dimmer:");
   if (this->dimmer_.has_value()) {
-    ESP_LOGCONFIG(TAG, "   Dimmer is: %s", this->dimmer_->dimmer.get_config().to_string().c_str());
+    ESP_LOGCONFIG(UyatLight::TAG, "   Dimmer is: %s", this->dimmer_->dimmer.get_config().to_string().c_str());
     if (this->dimmer_->min_value_number)
     {
-        ESP_LOGCONFIG(TAG, "   Has min_value_datapoint: %s", this->dimmer_->min_value_number->get_config().matching_dp.to_string().c_str());
+        ESP_LOGCONFIG(UyatLight::TAG, "   Has min_value_datapoint: %s", this->dimmer_->min_value_number->get_config().matching_dp.to_string().c_str());
     }
   }
   if (this->dp_switch_.has_value()) {
-    ESP_LOGCONFIG(TAG, "   Switch is %s", this->dp_switch_->get_config().to_string().c_str());
+    ESP_LOGCONFIG(UyatLight::TAG, "   Switch is %s", this->dp_switch_->get_config().to_string().c_str());
   }
   if (this->dp_color_.has_value()) {
-    ESP_LOGCONFIG(TAG, "   Color is %s", this->dp_color_->get_config().to_string().c_str());
+    ESP_LOGCONFIG(UyatLight::TAG, "   Color is %s", this->dp_color_->get_config().to_string().c_str());
   }
   // if (this->dp_white_temperature_)
   // {
@@ -128,9 +188,9 @@ void UyatLight::write_state(light::LightState *state) {
 
 void UyatLight::on_dimmer_value(const float value_percent)
 {
-  ESP_LOGV(TAG, "Dimmer of %s reported brightness: %.4f", get_object_id().c_str(), value_percent);
+  ESP_LOGV(UyatLight::TAG, "Dimmer of %s reported brightness: %.4f", get_object_id().c_str(), value_percent);
   if (this->state_->current_values != this->state_->remote_values) {
-    ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
+    ESP_LOGD(UyatLight::TAG, "Light is transitioning, datapoint change ignored");
     return;
   }
 
@@ -141,9 +201,9 @@ void UyatLight::on_dimmer_value(const float value_percent)
 
 void UyatLight::on_switch_value(const bool value)
 {
-  ESP_LOGV(TAG, "MCU reported switch %s is: %s", get_object_id().c_str(), ONOFF(value));
+  ESP_LOGV(UyatLight::TAG, "MCU reported switch %s is: %s", get_object_id().c_str(), ONOFF(value));
   if (this->state_->current_values != this->state_->remote_values) {
-    ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
+    ESP_LOGD(UyatLight::TAG, "Light is transitioning, datapoint change ignored");
     return;
   }
 
@@ -154,10 +214,10 @@ void UyatLight::on_switch_value(const bool value)
 
 void UyatLight::on_color_value(const DpColor::Value& value)
 {
-  ESP_LOGV(TAG, "MCU reported color %s is: %.2f, %.2f, %.2f", get_object_id().c_str(), value.r, value.g, value.b);
+  ESP_LOGV(UyatLight::TAG, "MCU reported color %s is: %.2f, %.2f, %.2f", get_object_id().c_str(), value.r, value.g, value.b);
 
   if (this->state_->current_values != this->state_->remote_values) {
-    ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
+    ESP_LOGD(UyatLight::TAG, "Light is transitioning, datapoint change ignored");
     return;
   }
 
@@ -173,9 +233,9 @@ void UyatLight::on_color_value(const DpColor::Value& value)
 
 void UyatLight::on_white_temperature_value(const float value_percent)
 {
-  ESP_LOGV(TAG, "Dimmer of %s reported white temperature: %.4f", get_object_id().c_str(), value_percent);
+  ESP_LOGV(UyatLight::TAG, "Dimmer of %s reported white temperature: %.4f", get_object_id().c_str(), value_percent);
   if (this->state_->current_values != this->state_->remote_values) {
-    ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
+    ESP_LOGD(UyatLight::TAG, "Light is transitioning, datapoint change ignored");
     return;
   }
 
