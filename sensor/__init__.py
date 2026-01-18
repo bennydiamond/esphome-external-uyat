@@ -22,7 +22,9 @@ DEPENDENCIES = ["uyat"]
 CODEOWNERS = ["@szupi_ipuzs"]
 
 UyatSensor = uyat_ns.class_("UyatSensor", sensor.Sensor, cg.Component)
+UyatSensorConfig = uyat_ns.struct("UyatSensor::Config")
 UyatSensorVAP = uyat_ns.class_("UyatSensorVAP", sensor.Sensor, cg.Component)
+UyatSensorVAPConfig = uyat_ns.struct("UyatSensorVAP::Config")
 UyatVAPValueType = uyat_ns.enum("UyatVAPValueType", is_class=True)
 
 VAP_VALUE_TYPE_VOLTAGE = "voltage"
@@ -101,12 +103,15 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]))
+    if config[CONF_TYPE] == CONF_TYPE_NUMBER:
+        config_struct = cg.StructInitializer(UyatSensorConfig,
+                                            ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SENSOR_DP_TYPES)))
+        var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
+    if config[CONF_TYPE] == CONF_TYPE_VAP:
+        config_struct = cg.StructInitializer(UyatSensorVAPConfig,
+                                            ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SENSOR_DP_TYPES)),
+                                            ("value_type", VAP_VALUE_TYPES[config[CONF_VAP_VALUE_TYPE]]))
+        var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
+
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
-
-    if config[CONF_TYPE] == CONF_TYPE_NUMBER:
-        cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], SENSOR_DP_TYPES)))
-    if config[CONF_TYPE] == CONF_TYPE_VAP:
-        value_type = VAP_VALUE_TYPES[config[CONF_VAP_VALUE_TYPE]]
-        cg.add(var.configure(await matching_datapoint_from_config(config[CONF_DATAPOINT], VAP_DP_TYPES), value_type))

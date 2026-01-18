@@ -13,26 +13,26 @@ namespace esphome::uyat
 
 class UyatSensor : public sensor::Sensor, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.sensor";
+
   void on_value(const float);
 
  public:
-  explicit UyatSensor(Uyat *parent):
-  parent_(parent)
-  {}
+
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+  };
+
+  explicit UyatSensor(Uyat *parent, Config config);
 
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint number_dp){
-    this->dp_number_.emplace([this](const float value){
-      this->on_value(value);
-    },
-    std::move(number_dp),
-    0, 1.0f);
-  }
 
  protected:
-  Uyat *parent_;
-  std::optional<DpNumber> dp_number_;
+  Uyat& parent_;
+  DpNumber dp_number_;
 };
 
 }  // namespace

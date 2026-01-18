@@ -19,25 +19,27 @@ enum class UyatVAPValueType {
 
 class UyatSensorVAP : public sensor::Sensor, public Component {
  private:
+
+  static constexpr const char* TAG = "uyat.sensorVAP";
+
   void on_value(const DpVAP::VAPValue&);
 
  public:
-  explicit UyatSensorVAP(Uyat *parent):
-  parent_(parent)
-  {}
 
+  struct Config
+  {
+    MatchingDatapoint matching_dp;
+    UyatVAPValueType value_type;
+  };
+
+  explicit UyatSensorVAP(Uyat *parent, Config config);
   void setup() override;
   void dump_config() override;
-  void configure(MatchingDatapoint vap_dp, const UyatVAPValueType value_type){
-    this->value_type_ = value_type;
-    this->dp_vap_.emplace([this](const DpVAP::VAPValue& value){this->on_value(value);},
-                             std::move(vap_dp));
-  }
 
  protected:
-  Uyat *parent_;
-  std::optional<DpVAP> dp_vap_;
-  UyatVAPValueType value_type_{UyatVAPValueType::VOLTAGE};
+  Uyat& parent_;
+  DpVAP dp_vap_;
+  UyatVAPValueType value_type_;
 };
 
 }  // namespace
