@@ -14,6 +14,11 @@ CONF_SPEED = "speed"
 CONF_DIRECTION = "direction"
 
 UyatFan = uyat_ns.class_("UyatFan", cg.Component, fan.Fan)
+UyatFanSpeedConfig = uyat_ns.struct("UyatFan::SpeedConfig")
+UyatFanSwitchConfig = uyat_ns.struct("UyatFan::SwitchConfig")
+UyatFanOscillationConfig = uyat_ns.struct("UyatFan::OscillationConfig")
+UyatFanDirectionConfig = uyat_ns.struct("UyatFan::DirectionConfig")
+UyatFanConfig = uyat_ns.struct("UyatFan::Config")
 
 SPEED_DP_TYPES = {
     "allowed": [
@@ -64,8 +69,8 @@ SPEED_CONFIG_SCHEMA = cv.Schema(
                 )
             })
         ),
-        cv.Required(CONF_MIN_VALUE): cv.uint32_t,
-        cv.Required(CONF_MAX_VALUE): cv.uint32_t,
+        cv.Optional(CONF_MIN_VALUE, default=1): cv.uint32_t,
+        cv.Optional(CONF_MAX_VALUE, default=100): cv.uint32_t,
     }
 )
 
@@ -131,23 +136,44 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_UYAT_ID])
-
-    var = cg.new_Pvariable(config[CONF_ID], parent)
-    await cg.register_component(var, config)
-    await fan.register_fan(var, config)
-
     if CONF_SPEED in config:
         speed_config = config[CONF_SPEED]
-        cg.add(var.configure_speed(await matching_datapoint_from_config(speed_config[CONF_DATAPOINT], SPEED_DP_TYPES),
-                                   speed_config[CONF_MIN_VALUE],
-                                   speed_config[CONF_MAX_VALUE]))
+        speed_conf_struct = cg.StructInitializer(UyatFanSpeedConfig,
+                                                 ("matching_dp", await matching_datapoint_from_config(speed_config[CONF_DATAPOINT], SPEED_DP_TYPES)),
+                                                 ("min_value", speed_config[CONF_MIN_VALUE]),
+                                                 ("max_value", speed_config[CONF_MAX_VALUE]))
+    else:
+        speed_conf_struct = cg.RawExpression("{}")
+
     if CONF_SWITCH in config:
         switch_config = config[CONF_SWITCH]
-        cg.add(var.configure_switch(await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES), switch_config[CONF_INVERTED]))
+        switch_conf_struct = cg.StructInitializer(UyatFanSwitchConfig,
+                                                  ("matching_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+    else:
+        switch_conf_struct = cg.RawExpression("{}")
     if CONF_OSCILLATION in config:
         oscillation_config = config[CONF_OSCILLATION]
-        cg.add(var.configure_oscillation(await matching_datapoint_from_config(oscillation_config[CONF_DATAPOINT], OSCILLATION_DP_TYPES), oscillation_config[CONF_INVERTED]))
+        oscillation_conf_struct = cg.StructInitializer(UyatFanOscillationConfig,
+                                                       ("matching_dp", await matching_datapoint_from_config(oscillation_config[CONF_DATAPOINT], OSCILLATION_DP_TYPES)),
+                                                       ("inverted", oscillation_config[CONF_INVERTED]))
+    else:
+        oscillation_conf_struct = cg.RawExpression("{}")
+
     if CONF_DIRECTION in config:
         direction_config = config[CONF_DIRECTION]
-        cg.add(var.configure_direction(await matching_datapoint_from_config(direction_config[CONF_DATAPOINT], DIRECTION_DP_TYPES), direction_config[CONF_INVERTED]))
+        direction_conf_struct = cg.StructInitializer(UyatFanDirectionConfig,
+                                                     ("matching_dp", await matching_datapoint_from_config(direction_config[CONF_DATAPOINT], DIRECTION_DP_TYPES)),
+                                                     ("inverted", direction_config[CONF_INVERTED]))
+    else:
+        direction_conf_struct = cg.RawExpression("{}")
+
+    final_conf_struct = cg.StructInitializer(UyatFanConfig,
+                                        ("speed_config", speed_conf_struct),
+                                        ("switch_config", switch_conf_struct),
+                                        ("oscillation_config", oscillation_conf_struct),
+                                        ("direction_config", direction_conf_struct))
+
+    var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]), final_conf_struct)
+    await cg.register_component(var, config)
+    await fan.register_fan(var, config)
