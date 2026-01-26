@@ -3,8 +3,44 @@
 
 #include "uyat_climate.h"
 
-namespace esphome {
-namespace uyat {
+namespace esphome::uyat
+{
+
+UyatClimate::UyatClimate(Uyat *parent, Config config):
+parent_(*parent),
+supports_heat_(config.supports_heat),
+supports_cool_(config.supports_cool)
+{
+  if (config.switch_config)
+  {
+    configure_switch(*config.switch_config);
+  }
+  if (config.active_state_pins_config)
+  {
+    this->active_state_pins_.heating = config.active_state_pins_config->heating;
+    this->active_state_pins_.cooling = config.active_state_pins_config->cooling;
+  }
+  if (config.active_state_dp_config)
+  {
+    configure_active_state_dp(*config.active_state_dp_config);
+  }
+  if (config.temperature_config)
+  {
+    configure_temperatures(*config.temperature_config);
+  }
+  if (config.presets_config)
+  {
+    configure_presets(*config.presets_config);
+  }
+  if (config.swings_config)
+  {
+    configure_swings(*config.swings_config);
+  }
+  if (config.fan_config)
+  {
+    configure_fan(*config.fan_config);
+  }
+}
 
 void UyatClimate::on_switch_value(const bool value)
 {
@@ -99,55 +135,30 @@ void UyatClimate::on_vertical_swing(const bool value)
 
 void UyatClimate::setup() {
   if (this->dp_switch_.has_value()) {
-    this->dp_switch_->init(*(this->parent_));
+    this->dp_switch_->init(this->parent_);
   }
-  if (this->active_state_pins_.heating != nullptr) {
-    this->active_state_pins_.heating->setup();
-    this->active_state_pins_.heating_state = this->active_state_pins_.heating->digital_read();
-  }
-  if (this->active_state_pins_.cooling != nullptr) {
-    this->active_state_pins_.cooling->setup();
-    this->active_state_pins_.cooling_state = this->active_state_pins_.cooling->digital_read();
-  }
+  this->active_state_pins_.init();
   if (this->dp_active_state_.has_value()) {
-    this->dp_active_state_->dp_number.init(*(this->parent_));
+    this->dp_active_state_->dp_number.init(this->parent_);
   }
   if (this->temperatures_.has_value()) {
-    this->temperatures_->dp_target.init(*(this->parent_));
+    this->temperatures_->dp_target.init(this->parent_);
     if (this->temperatures_->dp_current)
     {
-      this->temperatures_->dp_current->init(*(this->parent_));
+      this->temperatures_->dp_current->init(this->parent_);
     }
   }
 
-  this->presets_.init(*(this->parent_));
-  this->swing_modes_.init(*(this->parent_));
+  this->presets_.init(this->parent_);
+  this->swing_modes_.init(this->parent_);
 
   if (this->fan_modes_.has_value()) {
-    this->fan_modes_->dp_number.init(*(this->parent_));
+    this->fan_modes_->dp_number.init(this->parent_);
   }
 }
 
 void UyatClimate::loop() {
-  bool state_changed = false;
-  if (this->active_state_pins_.heating != nullptr) {
-    bool heating_state = this->active_state_pins_.heating->digital_read();
-    if (heating_state != this->active_state_pins_.heating_state) {
-      ESP_LOGV(UyatClimate::TAG, "Heating state pin changed to: %s", ONOFF(heating_state));
-      this->active_state_pins_.heating_state = heating_state;
-      state_changed = true;
-    }
-  }
-  if (this->active_state_pins_.cooling != nullptr) {
-    bool cooling_state = this->active_state_pins_.cooling->digital_read();
-    if (cooling_state != this->active_state_pins_.cooling_state) {
-      ESP_LOGV(UyatClimate::TAG, "Cooling state pin changed to: %s", ONOFF(cooling_state));
-      this->active_state_pins_.cooling_state = cooling_state;
-      state_changed = true;
-    }
-  }
-
-  if (state_changed) {
+  if (this->active_state_pins_.update_pins_state()) {
     this->compute_state_();
     this->publish_state();
   }
@@ -257,16 +268,12 @@ void UyatClimate::dump_config() {
     ESP_LOGCONFIG(UyatClimate::TAG, "  Switch is %s", this->dp_switch_->get_config().to_string().c_str());
   }
   if (this->dp_active_state_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Active state is %s", this->dp_active_state_->dp_number.get_config().to_string().c_str());
+    this->dp_active_state_->dump_config();
   }
   if (this->temperatures_.has_value()) {
-    ESP_LOGCONFIG(UyatClimate::TAG, "  Target Temperature is %s", this->temperatures_->dp_target.get_config().to_string().c_str());
-    if (this->temperatures_->dp_current.has_value()) {
-      ESP_LOGCONFIG(UyatClimate::TAG, "  Current Temperature is %s", this->temperatures_->dp_current->get_config().to_string().c_str());
-    }
+    this->temperatures_->dump_config();
   }
-  LOG_PIN("  Heating State Pin: ", this->active_state_pins_.heating);
-  LOG_PIN("  Cooling State Pin: ", this->active_state_pins_.cooling);
+  this->active_state_pins_.dump_config();
   this->presets_.dump_config();
   if (this->swing_modes_.dp_vertical.has_value()) {
     ESP_LOGCONFIG(UyatClimate::TAG, "  Swing Vertical is %s", this->swing_modes_.dp_vertical->get_config().to_string().c_str());
@@ -324,14 +331,16 @@ void UyatClimate::compute_state_() {
   }
 
   climate::ClimateAction target_action = climate::CLIMATE_ACTION_IDLE;
-  if (this->active_state_pins_.heating != nullptr || this->active_state_pins_.cooling != nullptr) {
-    // Use state from input pins
-    if (this->active_state_pins_.heating_state) {
-      target_action = climate::CLIMATE_ACTION_HEATING;
-      this->mode = climate::CLIMATE_MODE_HEAT;
-    } else if (this->active_state_pins_.cooling_state) {
-      target_action = climate::CLIMATE_ACTION_COOLING;
-      this->mode = climate::CLIMATE_MODE_COOL;
+  if (auto mode_from_pins = this->active_state_pins_.mode_from_state()) {
+    this->mode = *mode_from_pins;
+    if (this->mode == climate::CLIMATE_MODE_HEAT)
+    {
+       target_action = climate::CLIMATE_ACTION_HEATING;
+    }
+    else
+    if (this->mode == climate::CLIMATE_MODE_COOL)
+    {
+       target_action = climate::CLIMATE_ACTION_COOLING;
     }
 
     if (this->dp_active_state_.has_value()) {
@@ -382,5 +391,4 @@ void UyatClimate::switch_to_action_(climate::ClimateAction action) {
   this->action = action;
 }
 
-}  // namespace uyat
-}  // namespace esphome
+}  // namespace esphome::uyat

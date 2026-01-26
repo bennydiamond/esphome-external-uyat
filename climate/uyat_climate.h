@@ -10,146 +10,125 @@
 namespace esphome {
 namespace uyat {
 
-struct ActiveStateDpValueMapping
-{
-   std::optional<uint32_t> heating_value;
-   std::optional<uint32_t> cooling_value;
-   std::optional<uint32_t> drying_value;
-   std::optional<uint32_t> fanonly_value;
-};
-
-struct FanSpeedDpValueMapping
-{
-   std::optional<uint32_t> auto_value;
-   std::optional<uint32_t> low_value;
-   std::optional<uint32_t> medium_value;
-   std::optional<uint32_t> middle_value;
-   std::optional<uint32_t> high_value;
-};
-
-struct TemperatureConfig
-{
-  float offset{0.0f};
-  float multiplier{1.0f};
-};
-
 class UyatClimate : public climate::Climate, public Component {
- private:
-
-  static constexpr const char * TAG = "uyat.climate";
-
-  void on_switch_value(const bool);
-  void on_sleep_value(const bool);
-  void on_eco_value(const bool);
-  void on_boost_value(const bool);
-  void on_target_temperature_value(const float);
-  void on_current_temperature_value(const float);
-  void on_active_state_value(const float);
-  void on_fan_modes_value(const float);
-  void on_horizontal_swing(const bool);
-  void on_vertical_swing(const bool);
-
  public:
 
-  UyatClimate(Uyat *parent):
-  parent_(parent)
-  {}
+  struct SwitchConfig
+  {
+    MatchingDatapoint matching_dp;
+    bool inverted;
+  };
+
+  struct AnySwingConfig
+  {
+    MatchingDatapoint matching_dp;
+    bool inverted;
+  };
+
+  struct SwingsConfig
+  {
+    std::optional<AnySwingConfig> vertical;
+    std::optional<AnySwingConfig> horizontal;
+  };
+
+  struct ActiveStatePinsConfig
+  {
+    GPIOPin *heating{nullptr};
+    GPIOPin *cooling{nullptr};
+  };
+
+
+  struct ActiveStateDpValueMapping
+  {
+    std::optional<uint32_t> heating_value;
+    std::optional<uint32_t> cooling_value;
+    std::optional<uint32_t> drying_value;
+    std::optional<uint32_t> fanonly_value;
+  };
+
+  struct ActiveStateDpConfig
+  {
+    MatchingDatapoint matching_dp;
+    ActiveStateDpValueMapping mapping;
+  };
+
+  struct SinglePresetConfig
+  {
+    MatchingDatapoint matching_dp;
+    bool inverted;
+    std::optional<float> temperature;
+  };
+
+  struct PresetsConfig
+  {
+    std::optional<SinglePresetConfig> boost_config;
+    std::optional<SinglePresetConfig> eco_config;
+    std::optional<SinglePresetConfig> sleep_config;
+  };
+
+
+  struct FanSpeedDpValueMapping
+  {
+    std::optional<uint32_t> auto_value;
+    std::optional<uint32_t> low_value;
+    std::optional<uint32_t> medium_value;
+    std::optional<uint32_t> middle_value;
+    std::optional<uint32_t> high_value;
+  };
+
+  struct TemperatureDpConfig
+  {
+    MatchingDatapoint matching_dp;
+    float offset;
+    float multiplier;
+  };
+
+  struct TemperatureConfig
+  {
+    TemperatureDpConfig target_temperature;
+    std::optional<TemperatureDpConfig> current_temperature;
+    float hysteresis;
+    bool reports_fahrenheit;
+  };
+
+  struct FanConfig
+  {
+    MatchingDatapoint matching_dp;
+    FanSpeedDpValueMapping mapping;
+  };
+
+  struct Config
+  {
+    bool supports_heat;
+    bool supports_cool;
+    std::optional<SwitchConfig> switch_config;
+    std::optional<ActiveStatePinsConfig> active_state_pins_config;
+    std::optional<ActiveStateDpConfig> active_state_dp_config;
+    std::optional<TemperatureConfig> temperature_config;
+    std::optional<PresetsConfig> presets_config;
+    std::optional<SwingsConfig> swings_config;
+    std::optional<FanConfig> fan_config;
+  };
+
+  explicit UyatClimate(Uyat *parent, Config config);
 
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void set_supported_modes(const bool supports_heat, const bool supports_cool) {
-    this->supports_heat_ = supports_heat;
-    this->supports_cool_ = supports_cool;
-  }
-  void configure_switch(MatchingDatapoint switch_dp, const bool inverted = false) {
-    this->dp_switch_.emplace([this](const bool value){this->on_switch_value(value);},
-                             std::move(switch_dp),
-                             inverted);
-  }
-  void configure_active_state_dp(MatchingDatapoint state_dp, const ActiveStateDpValueMapping& value_mapping)
-  {
-    this->dp_active_state_.emplace(ActiveStateDp{
-                              DpNumber([this](const float value){this->on_active_state_value(value);},
-                                       std::move(state_dp),
-                                       0.0f, 1.0f
-                                      ),
-                              value_mapping
-                            });
-  }
-  void set_heating_state_pin(GPIOPin *pin) { this->active_state_pins_.heating = pin; }
-  void set_cooling_state_pin(GPIOPin *pin) { this->active_state_pins_.cooling = pin; }
-  void configure_horizontal_swing(MatchingDatapoint matching_dp, const bool inverted){
-    this->swing_modes_.dp_horizontal.emplace([this](const bool value){this->on_horizontal_swing(value);},
-                                             std::move(matching_dp),
-                                             inverted);
-  }
-  void configure_vertical_swing(MatchingDatapoint matching_dp, const bool inverted){
-    this->swing_modes_.dp_vertical.emplace([this](const bool value){this->on_vertical_swing(value);},
-                                             std::move(matching_dp),
-                                             inverted);
-  }
 
-  void configure_fan(MatchingDatapoint fan_modes_dp, const FanSpeedDpValueMapping& mapping){
-    this->fan_modes_.emplace(
-      FanModes{
-        DpNumber([this](const float value){this->on_fan_modes_value(value); },
-          std::move(fan_modes_dp),
-          0.0f, 1.0f),
-        mapping
-      }
-    );
-  }
+ private:
 
-  void configure_temperatures(MatchingDatapoint target_temperature_dp, const TemperatureConfig& target_temperature_config,
-                              std::optional<MatchingDatapoint> current_temperature_dp, const TemperatureConfig& current_temperature_config,
-                              const float hysteresis, const bool reports_fahrenheit) {
-    this->temperatures_.emplace(Temperatures{
-        DpNumber(
-          [this](const float value){this->on_target_temperature_value(value);},
-          std::move(target_temperature_dp),
-          target_temperature_config.offset, target_temperature_config.multiplier
-        ),
-        std::nullopt,
-        hysteresis, reports_fahrenheit
-      }
-    );
+  static constexpr const char * TAG = "uyat.climate";
 
-    if (current_temperature_dp)
-    {
-      this->temperatures_->dp_current.emplace(
-          [this](const float value){this->on_current_temperature_value(value);},
-          std::move(*current_temperature_dp),
-          current_temperature_config.offset, current_temperature_config.multiplier
-      );
-    }
-  }
-
-  void configure_preset_boost(MatchingDatapoint boost_dp, const std::optional<float> boost_temperature, const bool inverted = false) {
-    this->presets_.boost.dp.emplace([this](const bool value){this->on_boost_value(value);},
-                             std::move(boost_dp),
-                             inverted);
-    this->presets_.boost.temperature = boost_temperature;
-  }
-
-  void configure_preset_eco(MatchingDatapoint eco_dp, const std::optional<float> eco_temperature, const bool inverted = false) {
-    this->presets_.eco.dp.emplace([this](const bool value){this->on_eco_value(value);},
-                          std::move(eco_dp),
-                          inverted);
-    this->presets_.eco.temperature = eco_temperature;
-  }
-  void configure_preset_sleep(MatchingDatapoint sleep_dp, const bool inverted = false) {
-    this->presets_.sleep.dp.emplace([this](const bool value){this->on_sleep_value(value);},
-                             std::move(sleep_dp),
-                             inverted);
-  }
-
- protected:
-
-  struct ActiveStateDp
+  struct ActiveStateDpHandler
   {
      DpNumber dp_number;
      ActiveStateDpValueMapping mapping;
+
+     void dump_config() const
+     {
+        ESP_LOGCONFIG(UyatClimate::TAG, "  Active state is %s", dp_number.get_config().to_string().c_str());
+     }
 
      std::optional<climate::ClimateMode> last_value_to_mode() const
      {
@@ -255,8 +234,67 @@ class UyatClimate : public climate::Climate, public Component {
      }
   };
 
-  struct ActiveStatePins
+  struct ActiveStatePinsHandler
   {
+    void init()
+    {
+      if (heating != nullptr) {
+        heating->setup();
+        heating_state = heating->digital_read();
+      }
+      if (cooling != nullptr) {
+        cooling->setup();
+        cooling_state = cooling->digital_read();
+      }
+    }
+
+    bool update_pins_state()
+    {
+      bool state_changed = false;
+      if (heating != nullptr) {
+        const auto new_heating_state = heating->digital_read();
+        if (heating_state != new_heating_state) {
+          ESP_LOGV(UyatClimate::TAG, "Heating state pin changed to: %s", ONOFF(new_heating_state));
+          heating_state = new_heating_state;
+          state_changed = true;
+        }
+      }
+      if (cooling != nullptr) {
+        bool new_cooling_state = cooling->digital_read();
+        if (cooling_state != new_cooling_state) {
+          ESP_LOGV(UyatClimate::TAG, "Cooling state pin changed to: %s", ONOFF(new_cooling_state));
+          cooling_state = new_cooling_state;
+          state_changed = true;
+        }
+      }
+
+      return state_changed;
+    }
+
+    std::optional<climate::ClimateMode> mode_from_state() const
+    {
+      if ((heating == nullptr) && (cooling == nullptr))
+      {
+        return std::nullopt;
+      }
+
+      if (heating_state) {
+        return climate::CLIMATE_MODE_HEAT;
+      }
+
+      if (cooling_state) {
+        return climate::CLIMATE_MODE_COOL;
+      }
+
+      return climate::CLIMATE_MODE_OFF;
+    }
+
+    void dump_config() const
+    {
+      LOG_PIN("  Heating State Pin: ", heating);
+      LOG_PIN("  Cooling State Pin: ", cooling);
+    }
+
     GPIOPin *heating{nullptr};
     GPIOPin *cooling{nullptr};
 
@@ -270,7 +308,7 @@ class UyatClimate : public climate::Climate, public Component {
     std::optional<float> temperature{};
   };
 
-  struct Presets
+  struct PresetsHandler
   {
     AnyPreset boost{};
     AnyPreset eco{};
@@ -375,12 +413,20 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
-  struct Temperatures
+  struct TemperaturesHandler
   {
     DpNumber dp_target;
     std::optional<DpNumber> dp_current;
     float hysteresis{1.0f};
     bool reports_fahrenheit{false};
+
+    void dump_config() const
+    {
+      ESP_LOGCONFIG(UyatClimate::TAG, "  Target Temperature is %s", dp_target.get_config().to_string().c_str());
+      if (dp_current.has_value()) {
+        ESP_LOGCONFIG(UyatClimate::TAG, "  Current Temperature is %s", dp_current->get_config().to_string().c_str());
+      }
+    }
 
     std::optional<float> get_current_temperature() const
     {
@@ -430,7 +476,7 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
-  struct FanModes
+  struct FanModesHandler
   {
     DpNumber dp_number;
     FanSpeedDpValueMapping mapping;
@@ -549,7 +595,7 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
-  struct SwingModes
+  struct SwingModesHandler
   {
     std::optional<DpSwitch> dp_vertical{};
     std::optional<DpSwitch> dp_horizontal{};
@@ -669,6 +715,107 @@ class UyatClimate : public climate::Climate, public Component {
     }
   };
 
+  void configure_switch(SwitchConfig config) {
+    this->dp_switch_.emplace([this](const bool value){this->on_switch_value(value);},
+                             std::move(config.matching_dp),
+                             config.inverted);
+  }
+  void configure_active_state_dp(ActiveStateDpConfig config)
+  {
+    this->dp_active_state_.emplace(ActiveStateDpHandler{
+                              DpNumber([this](const float value){this->on_active_state_value(value);},
+                                       std::move(config.matching_dp),
+                                       0.0f, 1.0f
+                                      ),
+                              config.mapping
+                            });
+  }
+  void configure_swings(SwingsConfig config){
+    if (config.horizontal)
+    {
+      this->swing_modes_.dp_horizontal.emplace([this](const bool value){this->on_horizontal_swing(value);},
+                                              std::move(config.horizontal->matching_dp),
+                                              config.horizontal->inverted);
+    }
+
+    if (config.vertical)
+    {
+      this->swing_modes_.dp_vertical.emplace([this](const bool value){this->on_vertical_swing(value);},
+                                              std::move(config.vertical->matching_dp),
+                                              config.vertical->inverted);
+    }
+  }
+
+  void configure_fan(FanConfig config){
+    this->fan_modes_.emplace(
+      FanModesHandler{
+        DpNumber([this](const float value){this->on_fan_modes_value(value); },
+          std::move(config.matching_dp),
+          0.0f, 1.0f),
+        config.mapping
+      }
+    );
+  }
+
+  void configure_temperatures(TemperatureConfig config) {
+    this->temperatures_.emplace(TemperaturesHandler{
+        DpNumber(
+          [this](const float value){this->on_target_temperature_value(value);},
+          std::move(config.target_temperature.matching_dp),
+          config.target_temperature.offset, config.target_temperature.multiplier
+        ),
+        std::nullopt,
+        config.hysteresis, config.reports_fahrenheit
+      }
+    );
+
+    if (config.current_temperature)
+    {
+      this->temperatures_->dp_current.emplace(
+          [this](const float value){this->on_current_temperature_value(value);},
+          std::move(config.current_temperature->matching_dp),
+          config.current_temperature->offset, config.current_temperature->multiplier
+      );
+    }
+  }
+
+  void configure_presets(PresetsConfig config)
+  {
+    if (config.boost_config)
+    {
+      this->presets_.boost.dp.emplace([this](const bool value){this->on_boost_value(value);},
+                              std::move(config.boost_config->matching_dp),
+                              config.boost_config->inverted);
+      this->presets_.boost.temperature = config.boost_config->temperature;
+    }
+    if (config.eco_config)
+    {
+      this->presets_.eco.dp.emplace([this](const bool value){this->on_eco_value(value);},
+                            std::move(config.eco_config->matching_dp),
+                            config.eco_config->inverted);
+      this->presets_.eco.temperature = config.eco_config->temperature;
+    }
+    if (config.sleep_config)
+    {
+      this->presets_.sleep.dp.emplace([this](const bool value){this->on_sleep_value(value);},
+                              std::move(config.sleep_config->matching_dp),
+                              config.sleep_config->inverted);
+      this->presets_.sleep.temperature = config.sleep_config->temperature;
+    }
+  }
+
+
+  void on_switch_value(const bool);
+  void on_sleep_value(const bool);
+  void on_eco_value(const bool);
+  void on_boost_value(const bool);
+  void on_target_temperature_value(const float);
+  void on_current_temperature_value(const float);
+  void on_active_state_value(const float);
+  void on_fan_modes_value(const float);
+  void on_horizontal_swing(const bool);
+  void on_vertical_swing(const bool);
+
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
@@ -696,16 +843,16 @@ class UyatClimate : public climate::Climate, public Component {
   /// Switch the climate device to the given climate mode.
   void switch_to_action_(climate::ClimateAction action);
 
-  Uyat *parent_;
+  Uyat& parent_;
   bool supports_heat_;
   bool supports_cool_;
   std::optional<DpSwitch> dp_switch_{};
-  std::optional<ActiveStateDp> dp_active_state_{};
-  ActiveStatePins active_state_pins_{};
-  Presets presets_{};
-  std::optional<Temperatures> temperatures_{};
-  std::optional<FanModes> fan_modes_{};
-  SwingModes swing_modes_{};
+  std::optional<ActiveStateDpHandler> dp_active_state_{};
+  ActiveStatePinsHandler active_state_pins_{};
+  PresetsHandler presets_{};
+  std::optional<TemperaturesHandler> temperatures_{};
+  std::optional<FanModesHandler> fan_modes_{};
+  SwingModesHandler swing_modes_{};
 };
 
 }  // namespace uyat
