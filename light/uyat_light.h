@@ -12,7 +12,7 @@
 namespace esphome::uyat
 {
 
-class UyatLight : public Component, public light::LightOutput {
+class UyatLight : public EntityBase, public Component, public light::LightOutput {
  public:
 
   struct ConfigDimmer
