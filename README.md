@@ -281,15 +281,168 @@ When creating a number entity, you need to specify:
 - `offset` (optional) - the value received from the MCU will be be increased by `offset`. The value set to the MCU will be decreased by `offset`.
 - all other options from the [Esphome Number](https://esphome.io/components/number/)
 
+Example yaml:
+```yaml
+number:
+  - platform: uyat
+    name: Volume
+    datapoint:
+      number: 43
+      datapoint_type: value
+    min_value: 0
+    max_value: 100
+    step: 10
+    scale: 1 # times 10
+    unit_of_measurement: "%"
+    entity_category: config
+    device_class: volume
+    icon: mdi:volume-high
+```
+
 ## Select
 When creating a select entity you need to specify:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `enum`.
 - `options` (required) - the mapping between the MCU values and the entity values
-- `optimistic` (optional, bool) - if True, then setting the entity value will take effect immediately, without waiting for the MCU to answer. Defautl is false.
+- `optimistic` (optional, bool) - if True, then setting the entity value will take effect immediately, without waiting for the MCU to answer. Default is false.
+- all other options from the [Esphome Select](https://esphome.io/components/select/)
+
+Example yaml:
+```yaml
+select:
+  - platform: uyat
+    name: "Cleaning Mode"
+    datapoint:
+      number: 25
+      datapoint_type: enum
+    options:
+      0: "Global Sweep"
+      1: "Edge Sweep"
+      2: "Mopping"
+      3: "Auto Recharging"
+      4: "Spot Sweep"
+      5: "Standby"
+```
 
 ## Sensor
+Two kinds of sensors are currently supported: a `number` sensor and a `vap` sensor. They can be distinguished by specifying additional `type` key. If the `type` key is omitted, the `number` is assumed.
+### Number sensor
+The state (ie. value) of this sensor is exactly what the MCU sent in the datapoint.
+When creating this sensor, you need to specify:
+- `type` (optional) - either set to `number` or don't define it.
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`, `bitmap`. The default type is `detect`.
+- all other options from the [Esphome Sensor](https://esphome.io/components/sensor/)
+
+Example yaml:
+```yaml
+sensor:
+  - platform: "uyat"
+    type: number
+    name: "Mopping Type"
+    datapoint:
+      number: 107
+      datapoint_type: detect
+```
+
+### VAP sensor
+`VAP` stands for Voltage, Amperage and Power. Some Tuya breakers and power meters encode these value on specific parts of a raw datapoint. They can be [decoded manually](#manual-parsing-of-datapoint-data), but it is more convenient to get them using this sensor.
+You can only decode one of the three types in one sensor, but you can use the same datapoint in many sensors.
+When creating this sensor, you need to specify:
+- `type` (optional) - must be set to `vap`
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `raw`. The default type is `raw`.
+- `vap_value_type` (required) - one of `voltage`, `amperage` or `power`
+- all other options from the [Esphome Sensor](https://esphome.io/components/sensor/)
+
+Example yaml:
+```yaml
+sensor:
+  - platform: "uyat"
+    datapoint: 6
+    type: vap
+    vap_value_type: voltage
+    name: "Voltage"
+    unit_of_measurement: "V"
+    filters:
+      multiply: 0.1
+  - platform: "uyat"
+    datapoint: 6
+    type: vap
+    vap_value_type: amperage
+    name: "Current"
+    unit_of_measurement: "A"
+    filters:
+      multiply: 0.001
+  - platform: "uyat"
+    datapoint: 6
+    type: vap
+    vap_value_type: power
+    name: "Power"
+    id: power_sensor
+    unit_of_measurement: "W"
+```
+
 ## Switch
+When creating a switch entity you need to specify:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- all other options from the [Esphome Switch](https://esphome.io/components/switch/)
+
+Note that with handling of the switch datapoint is the same as with binary sensor, ie. the 0 values are treated as `False`, non-0 as `True`.
+But setting the switch to `True` always sends value of `1` to the MCU and setting it to `False` always sends value of `0`.
+
+Example yaml:
+```yaml
+switch:
+  - platform: uyat
+    datapoint:
+      number: 16
+      datapoint_type: bool
+    name: Relay
+```
+
 ## Text Sensor
+Two kinds of text sensors are currently supported: a `text` type and a `mapped` type. They can be selected by specifying additional `type` key. If the `type` key is omitted, `text` is used by default.
+### Normal Text Sensor
+This kind of sensor simply uses the payload of a datapoint and interprets it as text. You can select additional encoding of this text.
+When creating this sensor you need to specify:
+- `type` (optional) - either `text` or don't define it.
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `raw`, `string`. The default type is `detect`.
+- `encoding` (optional) - additional processing to be done over the datapoint payload. Can be `plain` (no processing), `base64` (base64 decoder is used) or `hex` (each character is shown in hex). If not specified, `plain` is used.
+- all other options from the [Esphome Text Sensor](https://esphome.io/components/text_sensor/)
+
+Example yaml:
+```yaml
+text_sensor:
+  - platform: "uyat"
+    name: "Serial Number"
+    datapoint: 58
+    type: text
+```
+
+### Mapped Text Sensor
+This kind of sensor reads a value from a numeric datapoint and uses a user-defined table to translate it into a text. Think of it as of a read-only [select component](#select).
+When creating this sensor you need to specify:
+- `type` (required) - must be set to `mapped`
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `detect`.
+- `options` (required) - the mapping of datapoint numerical values to text values.
+- all other options from the [Esphome Text Sensor](https://esphome.io/components/text_sensor/)
+
+Example yaml:
+```yaml
+text_sensor:
+  - platform: "uyat"
+    name: "Current Status"
+    type: "mapped"
+    datapoint:
+      number: 38
+      datapoint_type: enum
+    options:
+      0: "Standby"
+      1: "Automatic Cleaning"
+      2: "Mopping"
+      3: "Wall Cleaning"
+      4: "Returning to Charging Station"
+      5: "Charging"
+      6: "Spot Cleaning"
+```
 
 ## Climate
 ## Cover
@@ -315,4 +468,4 @@ As you can see above there's still plenty to do.
 If you want to help or know how to improve this component, you are more than welcome to create a pull request or drop me a line on [Esphome Discord Server](https://discord.com/invite/n9sdw7pnsn).
 
 # License
-Since this component is a rewrite, I think it's only fair to keep the Esphome license.
+Since this component is a rewrite, I think it's only fair to keep the [Esphome license](LICENSE).
