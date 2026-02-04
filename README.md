@@ -2,6 +2,7 @@
 This repo contains esphome external component with alternative implementation of TuyaMCU protocol(s). While esphome already supports TuyaMCU via the [tuya component](https://esphome.io/components/tuya/), I found it incomplete, outdated and inflexible, and it was very hard to make it work with some of my devices. Also it only supports the standard TuyaMCU protocol, which make it useless when dealing with eg. battery devices.
 
 Although Uyat originated from the esphome tuya component, I decided not to keep its yaml syntax. It might be similar, but sometimes there are significant differences, so please make sure to read the [description for each component](#supported-esphome-components).
+Also note that this is still work in progress and at this stage the syntax changes are going to happen often and I don't intend the syntax to be backward compatible between versions.
 
 This readme assumes the user already knows how to deal with TuyaMCU devices, what datapoints are and how to find the list and description of the datapoints for their devices. In the future I might also write a guide on how to do that, but till then, use google and ask on forums like [elektroda](http://elektroda.com).
 
@@ -571,6 +572,44 @@ climate:
 ```
 
 # Climate: Fan
+If your device has a fan, there probably is a datapoint that controls it. The `fan_mode` section deals with options for just that.
+The possible options:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `value`, `enum`. The default type is `enum`.
+- `auto_value` (optional, number) - the datapoint value which corresponds to the "auto" setting
+- `low_value` (optional, number) - the datapoint value which corresponds to the "low" setting
+- `medium_value` (optional, number) - the datapoint value which corresponds to the "medium" setting
+- `middle_value` (optional, number) - the datapoint value which corresponds to the "middle" setting
+- `high_value` (optional, number) - the datapoint value which corresponds to the "high" setting
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    fan_mode:
+      datapoint: 5
+      low_value: 0
+      high_value: 1
+```
+
+# Climate: Swings
+If your device can swing, there probably is a datapoint that controls it. The `swing_mode` section deals with options for just that.
+The possible options (at least one must be specified):
+- `vertical` (optional) - the section containing settings for vertical swings. In this section you can specify:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+  * `inverted` (optional) - should the behavior of this swings be inverted (ie. swings are off if the datapoint evaluates to `True`). The default is `False`.
+- `horizontal` (optional) - the section containing settings for vertical swings
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+  * `inverted` (optional) - should the behavior of this swings be inverted (ie. swings are off if the datapoint evaluates to `True`). The default is `False`.
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    swing_mode:
+      horizontal:
+        datapoint: 11
+        inverted: True
+```
 
 ## Cover
 ## Fan
