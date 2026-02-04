@@ -276,7 +276,7 @@ When creating a number entity, you need to specify:
 - `min_value` (required) - the minimum value of the entity
 - `min_value` (required) - the maximum value of the entity
 - `step` (required) - the granularity
-- `multiplier` (optional, exclusive with `multiplier`) - the value received from the MCU will be multiplied by this number and the result will be set as the entity state. The value set to the MCU will be divided by this number before sending.
+- `multiplier` (optional, exclusive with `scale`) - the value received from the MCU will be multiplied by this number and the result will be set as the entity state. The value set to the MCU will be divided by this number before sending.
 - `scale` (optional, exclusive with `multiplier`) - same as `multiplier`, but sets the multiplier to 10^scale
 - `offset` (optional) - the value received from the MCU will be be increased by `offset`. The value set to the MCU will be decreased by `offset`.
 - all other options from the [Esphome Number](https://esphome.io/components/number/)
@@ -385,7 +385,7 @@ When creating a switch entity you need to specify:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
 - all other options from the [Esphome Switch](https://esphome.io/components/switch/)
 
-Note that with handling of the switch datapoint is the same as with binary sensor, ie. the 0 values are treated as `False`, non-0 as `True`.
+Note that handling of the switch datapoint is the same as of the binary sensor's datapoint, ie. the 0 values are treated as `False`, non-0 as `True`.
 But setting the switch to `True` always sends value of `1` to the MCU and setting it to `False` always sends value of `0`.
 
 Example yaml:
@@ -445,6 +445,133 @@ text_sensor:
 ```
 
 ## Climate
+The original Esphome Tuya Climate component allows specifying many options. I decided to keep all of the for the time being, but made them tidier (I think). Note that some of the combination of options below are mutually exclusive.
+There are some generic options that should be specified on the top-level. The rest of the options are separated in their own section.
+
+Generic options:
+- `supports_heat` (optional, boolean) - set to `True` if the device has the actual heating functionality. Defaults to `True`.
+- `supports_cool` (optional, boolean) - set to `True` if the device has the actual cooling functionality. Defaults to `False`.
+- all other options from the [Esphome Climate](https://esphome.io/components/climate/)
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    supports_heat: True
+```
+
+### Climate: Switch
+This section enables handling of a datapoint that turns the device on/off. If your device supports it, specify all the options under the `switch` key.
+The possible options:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `inverted` (optional, boolean) - set to `True` if the behavior should be inverted (ie. if switch value `False` should mean `ON`). Defaults to `False`.
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    switch:
+      datapoint: 7
+      inverted: True
+```
+
+### Climate: Active State Datapoint
+This section enables handling of a datapoint that controls the device's state, but is not a simple switch. If your device supports it, specify all the options under the `active_state_datapoint` key.
+The possible options:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `enum`.
+- `heating_value` (optional, number) - the datapoint value which corresponds to the heating state. If omitted, value of `1` is used.
+- `cooling_value` (optional, number) - the datapoint value which corresponds to the cooling state.
+- `drying_value` (optional, number) - the datapoint value which corresponds to the drying state.
+- `fanonly_value` (optional, number) - the datapoint value which corresponds to the fan-only state.
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    active_state_datapoint:
+      datapoint:
+        number: 7
+        datapoint_type: enum
+      cooling_value: 100
+```
+
+
+### Climate: Active State Pins
+In some older Tuya devices, the heating/cooling state was signaled using GPIOs. If your device supports it, then specify all the options under the `active_state_pins` key.
+The possible options (at least one must be specified):
+- `heating` (optional, pin) - the GPIO that can used to get the heating state
+- `cooling` (optional, pin) - the GPIO that can used to get the cooling state
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    active_state_pins:
+      cooling: GPIO4
+```
+
+### Climate: Temperature
+Some devices allow setting target and reading current temperature. If your device supports it, then specify all the options under the `temperature` key.
+The possible options:
+- `target` (required) - section for specifying options for the target temperature datapoint. The options can be as follows:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`.
+  * `multiplier` (optional, float) - the value received from the MCU will be multiplied by this number and the result will used as the temperature value. The value set to the MCU will be divided by this number before sending.
+  * `offset` (optional, float) - the value received from the MCU will be increased by this number and the result will be used as the temperature. The value set to the MCU will be decreased by this number before sending.
+- `current` (optional) - section for specifying options for the current temperature datapoint. The options can be as follows:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`.
+  * `multiplier` (optional, float) - the value received from the MCU will be multiplied by this number and the result will used as the temperature value.
+  * `offset` (optional, float) - the value received from the MCU will be increased by this number and the result will be used as the temperature.
+- `reports_fahrenheit` (optional, boolean) - setting this to `True` will cause recalculation of every temperature value read from the device from ºF to ºC and the other direction when setting temperature to the device. Defaults to `False`.
+- `hysteresis` (optional, float) - for the devices that don't have a way of detecting their heating/cooling state from a datapoint, the hysteresis will be used for that. Both current and target temperature datapoints must be defined for the hysteresis to work. If not specified, value of `1.0` is used.
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    temperature:
+      target:
+        datapoint: 10
+        multiplier: 0.5
+        offset: 30
+      current:
+        datapoint: 11
+      reports_fahrenheit: True
+```
+
+### Climate: Preset
+Some devices allow users to select special modes of operation. Esphome and HA call them "presets". You can configure them all under the `preset` section.
+
+Three types of presets are currently supported by this implementation: `sleep`, `eco` and `boost`. For some preset types you can also define the temperature that should be set if the preset is selected.
+
+- To create the Eco preset, specify the following under the `eco` key:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+  * `inverted` (optional) - should the behavior of this switch be inverted (ie. switch off if the datapoint evaluates to `True`). The default is `False`.
+  * `temperature` (optional) - the temperature that should be set as target if this preset is selected.
+
+- To create the Boost preset, specify the following under the `boost` key:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+  * `inverted` (optional) - should the behavior of this switch be inverted (ie. switch off if the datapoint evaluates to `True`). The default is `False`.
+  * `temperature` (optional) - the temperature that should be set as target if this preset is selected.
+
+- To create the Sleep preset, specify the following under the `sleep` key:
+  * `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+  * `inverted` (optional) - should the behavior of this switch be inverted (ie. switch off if the datapoint evaluates to `True`). The default is `False`.
+
+Example yaml:
+```yaml
+climate:
+  - platform: "uyat"
+    preset:
+      sleep:
+        datapoint: 1
+      boost:
+        datapoint: 2
+        inverted: True
+        temperature: 75
+```
+
+# Climate: Fan
+
 ## Cover
 ## Fan
 ## Light
