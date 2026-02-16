@@ -37,6 +37,8 @@ external_components:
   - source:
       type: git
       url: https://github.com/szupi-ipuzs/esphome-external-uyat
+      ref: main
+    components: ["uyat"]
 ```
 
 Uyat requires uart component to talk to the MCU, so you need to add one in your yaml. Then just add `uyat:`, eg:
