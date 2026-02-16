@@ -449,7 +449,7 @@ text_sensor:
 The original Esphome Tuya Climate component allows specifying many options. I decided to keep all of the for the time being, but made them tidier (I think). Note that some of the combination of options below are mutually exclusive.
 There are some generic options that should be specified on the top-level. The rest of the options are separated in their own section.
 
-Generic options:
+### Climate: generic options
 - `supports_heat` (optional, boolean) - set to `True` if the device has the actual heating functionality. Defaults to `True`.
 - `supports_cool` (optional, boolean) - set to `True` if the device has the actual cooling functionality. Defaults to `False`.
 - all other options from the [Esphome Climate](https://esphome.io/components/climate/)
@@ -612,11 +612,153 @@ climate:
 ```
 
 ## Cover
+The original Esphome Tuya Cover component allows specifying many options. I decided to keep all of the for the time being, but made them tidier (I think).
+There are some generic options that should be specified on the top level. The rest of the options are separated in their specific sections.
+
+*Please note that as I don't own a cover device I was not able to test this code with a real device yet.*
+
+### Cover: generic options
+- `restore_mode` - one of `NO_RESTORE`, `RESTORE` and `RESTORE_AND_CALL`.
+- all other options from the [Esphome Cover](https://esphome.io/components/cover/)
+
+### Cover: Control
+The optional `control` section is where you specify the command datatapoint and map its values for Uyat to know which exact values mean which command.
+You need to specify the following under the `control` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `enum`.
+- `open_value` (optional, number) - the datapoint value for the "open" command.
+- `close_value` (optional, number) - the datapoint value for the "close" command.
+- `stop_value` (optional, number) - the datapoint value for the "stop" command.
+
+Example yaml:
+```yaml
+cover:
+  - platform: "uyat"
+    control:
+      datapoint: 5
+      open_value: 1
+      close_value: 0
+```
+
+### Cover: Direction
+The optional `direction` section is where you specify the direction datapoint.
+You need to specify the following under the `direction` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` means down). If not specified, defaults to `False`.
+
+Example yaml:
+```yaml
+cover:
+  - platform: "uyat"
+    direction:
+      datapoint:
+        number: 11
+        datapoint_type: enum
+      inverted: True
+```
+
+### Cover: Position
+Some devices allow users to specify the exact percentage the cover should close and some also report the exact percentage via a different datapoint. The `position` section is where you can specify these datapoints, as well as their settings. This section is always required.
+You need to specify the following under the `position` key:
+- `position_datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`. Uyat will write the requested percentage to this datapoint.
+- `position_report_datapoint` (optional) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`. If this is specified, Uyat will use this datapoint to read the current percentage. Else the `position_datapoint` will be used for that.
+- `inverted` (optional, boolean) - set to True if the value range in the position datapoints is inverted (ie. `min_value` is 100%).
+- `min_value` (optional, number) - the exact value that MCU uses for the "fully closed" position (or "fully open" if `inverted`). If not specified, `0` is used.
+- `max_value` (optional, number) - the exact value that MCU uses for the "fully open" position (or "fully closed" if `inverted`). If not specified, `100` is used.
+- `uncalibrated_value` (optional, number) - the exact value that MCU reports when position requires calibration.
+
+Example yaml:
+```yaml
+cover:
+  - platform: "uyat"
+    position:
+      position_datapoint:
+        number: 11
+        datapoint_type: value
+      position_report_datapoint: 8
+      inverted: True
+      min_value: 1
+      max_value: 100
+      uncalibrated_value: 0
+```
+
 ## Fan
+The mcu fan devices usually allow users to enable oscillation and specify the fan speed either in steps or as a percentage. There is a datapoint for each of these features and you can specify them here.
+
+*Please note that as I don't own a fan device I was not able to test this code with a real device yet.*
+
+### Fan: generic options
+There are currently no additional generic options for fans, you can only apply:
+- all other options from the [Esphome Fan](https://esphome.io/components/fan/)
+
+### Fan: Switch
+Most devices have an on/off switch as a separate datapoint.
+You need to specify it under the `switch` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "off"). If not specified, defaults to `False`.
+
+Example yaml:
+```yaml
+fan:
+  - platform: "uyat"
+    switch:
+      datapoint: 7
+      inverted: False
+```
+
+### Fan: Oscillation
+The fan devices that can oscillate have a datapoint for it.
+You need to specify it under the `oscillation` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "off"). If not specified, defaults to `False`.
+
+Example yaml:
+```yaml
+fan:
+  - platform: "uyat"
+    oscillation:
+      datapoint: 10
+      inverted: True
+```
+
+### Fan: Direction
+Some ceiling fans can move in any of two directions which can be controlled by a datapoint.
+You need to specify it under the `direction` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "reverse"). If not specified, defaults to `False`.
+
+Example yaml:
+```yaml
+fan:
+  - platform: "uyat"
+    direction:
+      datapoint: 11
+      inverted: True
+```
+
+### Fan: Speed
+Some fans allow users to specify the rotation speed, by either selecting on of the presets or by specifying the percentage.
+In both cases the datapoint need to be specified under the `speek` key:
+- `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`.
+- `min_value` (optional, number) - the exact value that MCU uses for the "lowest speed". If not specified, `1` is used.
+- `max_value` (optional, number) - the exact value that MCU uses for the "highest speed". If not specified, `100` is used.
+
+Example yaml:
+```yaml
+fan:
+  - platform: "uyat"
+    speed:
+      datapoint:
+        number: 11
+        datapoint_type: enum
+      min_value: 0
+      max_value: 3
+```
+
+
 ## Light
 
 
-# Shoulders of the giants
+# Shoulders of the giant
 Even though I don't like the original tuya component, I still think the Esphome Team did a great job with it. I would never be able to write Uyat without it and I have learnt a great deal just from studying it.
 Thank you Esphome Team!
 
