@@ -26,11 +26,45 @@ CONF_COLOR = "color"
 CONF_WHITE_TEMPERATURE = "white_temperature"
 
 UyatColorType = uyat_ns.enum("UyatColorType", is_class=True)
-UyatLightConfigDimmer = uyat_ns.struct("UyatLight::ConfigDimmer")
-UyatLightConfigSwitch = uyat_ns.struct("UyatLight::ConfigSwitch")
-UyatLightConfigColor = uyat_ns.struct("UyatLight::ConfigColor")
-UyatLightConfigWhiteTemperature = uyat_ns.struct("UyatLight::ConfigWhiteTemperature")
-UyatLightConfig = uyat_ns.struct("UyatLight::Config")
+
+UyatLightConfigSwitch = uyat_ns.struct("ConfigSwitch")
+UyatLightConfigDimmer = uyat_ns.struct("ConfigDimmer")
+UyatLightConfigColor = uyat_ns.struct("ConfigColor")
+UyatLightConfigWhiteTemperature = uyat_ns.struct("ConfigWhiteTemperature")
+
+UyatLightBinary = uyat_ns.class_("UyatLightBinary", cg.Component)
+UyatLightBinaryConfig = uyat_ns.struct("UyatLightBinary::Config")
+
+UyatLightCT = uyat_ns.class_("UyatLightCT", cg.Component)
+UyatLightCTConfig = uyat_ns.struct("UyatLightCT::Config")
+
+UyatLightDimmer = uyat_ns.class_("UyatLightDimmer", cg.Component)
+UyatLightDimmerConfig = uyat_ns.struct("UyatLightDimmer::Config")
+
+UyatLightRGB = uyat_ns.class_("UyatLightRGB", cg.Component)
+UyatLightRGBConfig = uyat_ns.struct("UyatLightRGB::Config")
+
+UyatLightRGBCT = uyat_ns.class_("UyatLightRGBCT", cg.Component)
+UyatLightRGBCTConfig = uyat_ns.struct("UyatLightRGBCT::Config")
+
+UyatLightRGBW = uyat_ns.class_("UyatLightRGBW", cg.Component)
+UyatLightRGBWConfig = uyat_ns.struct("UyatLightRGBW::Config")
+
+UYAT_LIGHT_TYPE_BINARY = "binary"
+UYAT_LIGHT_TYPE_DIMMER = "dimmer"
+UYAT_LIGHT_TYPE_CT = "ct"
+UYAT_LIGHT_TYPE_RGB = "rgb"
+UYAT_LIGHT_TYPE_RGBW = "rgbw"
+UYAT_LIGHT_TYPE_RGBCT = "rgbct"
+
+UYAT_LIGHT_TYPES = [
+    UYAT_LIGHT_TYPE_BINARY,
+    UYAT_LIGHT_TYPE_DIMMER,
+    UYAT_LIGHT_TYPE_CT,
+    UYAT_LIGHT_TYPE_RGB,
+    UYAT_LIGHT_TYPE_RGBW,
+    UYAT_LIGHT_TYPE_RGBCT,
+]
 
 COLOR_TYPES = {
     "RGB": UyatColorType.RGB,
@@ -160,34 +194,123 @@ WHITE_TEMPERATURE_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.All(
-    light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
-        {
-            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLight),
-            cv.GenerateID(CONF_UYAT_ID): cv.use_id(Uyat),
-            cv.Required(CONF_DIMMER): DIMMER_CONFIG_SCHEMA,
-            cv.Optional(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
-            cv.Optional(CONF_COLOR): COLOR_CONFIG_SCHEMA,
-            cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
-            cv.Optional(CONF_WHITE_TEMPERATURE): WHITE_TEMPERATURE_SCHEMA,
-            # Change the default gamma_correct and default transition length settings.
-            # The Uyat MCU handles transitions and gamma correction on its own.
-            cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
-            cv.Optional(
-                CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
-            ): cv.positive_time_period_milliseconds,
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(
-        CONF_DIMMER,
-        CONF_SWITCH,
-        CONF_COLOR,
-    ),
+CONFIG_UYAT_LIGHT_COMMON_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_UYAT_ID): cv.use_id(Uyat),
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        UYAT_LIGHT_TYPE_BINARY:
+            light.BINARY_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightBinary),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+            }
+        ),
+        UYAT_LIGHT_TYPE_DIMMER:
+            light.BRIGHTNESS_ONLY_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightDimmer),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+                cv.Required(CONF_DIMMER): DIMMER_CONFIG_SCHEMA,
+                # Change the default gamma_correct and default transition length settings.
+                # The MCU handles transitions and gamma correction on its own.
+                cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+                cv.Optional(
+                    CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+        UYAT_LIGHT_TYPE_CT:
+            light.BRIGHTNESS_ONLY_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightCT),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+                cv.Required(CONF_DIMMER): DIMMER_CONFIG_SCHEMA,
+                cv.Required(CONF_WHITE_TEMPERATURE): WHITE_TEMPERATURE_SCHEMA,
+                # Change the default gamma_correct and default transition length settings.
+                # The MCU handles transitions and gamma correction on its own.
+                cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+                cv.Optional(
+                    CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+        UYAT_LIGHT_TYPE_RGB:
+            light.RGB_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightRGB),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+                cv.Required(CONF_COLOR): COLOR_CONFIG_SCHEMA,
+            }
+        ),
+        UYAT_LIGHT_TYPE_RGBW:
+            light.BRIGHTNESS_ONLY_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightRGBW),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+                cv.Required(CONF_DIMMER): DIMMER_CONFIG_SCHEMA,
+                cv.Required(CONF_COLOR): COLOR_CONFIG_SCHEMA,
+                cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
+                # Change the default gamma_correct and default transition length settings.
+                # The MCU handles transitions and gamma correction on its own.
+                cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+                cv.Optional(
+                    CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+        UYAT_LIGHT_TYPE_RGBCT:
+            light.BRIGHTNESS_ONLY_LIGHT_SCHEMA
+            .extend(CONFIG_UYAT_LIGHT_COMMON_SCHEMA)
+            .extend(
+            {
+                cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(UyatLightRGBCT),
+                cv.Required(CONF_SWITCH): SWITCH_CONFIG_SCHEMA,
+                cv.Required(CONF_DIMMER): DIMMER_CONFIG_SCHEMA,
+                cv.Required(CONF_COLOR): COLOR_CONFIG_SCHEMA,
+                cv.Required(CONF_WHITE_TEMPERATURE): WHITE_TEMPERATURE_SCHEMA,
+                cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
+                # Change the default gamma_correct and default transition length settings.
+                # The MCU handles transitions and gamma correction on its own.
+                cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+                cv.Optional(
+                    CONF_DEFAULT_TRANSITION_LENGTH, default="0s"
+                ): cv.positive_time_period_milliseconds,
+            }
+        ),
+    },
+    lower=True,
 )
 
 
 async def to_code(config):
-    if CONF_DIMMER in config:
+    if config[CONF_TYPE] == UYAT_LIGHT_TYPE_BINARY:
+        switch_config = config[CONF_SWITCH]
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+        full_config_struct = cg.StructInitializer(UyatLightBinaryConfig, ("switch_config", switch_conf_struct))
+
+    elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_DIMMER:
+        switch_config = config[CONF_SWITCH]
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+
         dimmer_config = config[CONF_DIMMER]
         if CONF_MIN_VALUE_DATAPOINT in config:
             min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
@@ -200,26 +323,30 @@ async def to_code(config):
                                                   ("max_value", dimmer_config[CONF_MAX_VALUE]),
                                                   ("inverted", dimmer_config[CONF_INVERTED]),
                                                   ("min_value_dp", min_value_dp))
-    else:
-        dimmer_conf_struct = cg.RawExpression("{}")
 
-    if CONF_SWITCH in config:
+        full_config_struct = cg.StructInitializer(UyatLightDimmerConfig,
+                                                  ("switch_config", switch_conf_struct),
+                                                  ("dimmer_config", dimmer_conf_struct))
+
+    elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_CT:
         switch_config = config[CONF_SWITCH]
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
-    else:
-        switch_conf_struct = cg.RawExpression("{}")
 
-    if CONF_COLOR in config:
-        color_config = config[CONF_COLOR]
-        color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
-                                                 ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
-                                                 ("color_type", color_config[CONF_TYPE]))
-    else:
-        color_conf_struct = cg.RawExpression("{}")
+        dimmer_config = config[CONF_DIMMER]
+        if CONF_MIN_VALUE_DATAPOINT in config:
+            min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
+        else:
+            min_value_dp = cg.RawExpression("{}")
 
-    if CONF_WHITE_TEMPERATURE in config:
+        dimmer_conf_struct = cg.StructInitializer(UyatLightConfigDimmer,
+                                                  ("dimmer_dp", await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES)),
+                                                  ("min_value", dimmer_config[CONF_MIN_VALUE]),
+                                                  ("max_value", dimmer_config[CONF_MAX_VALUE]),
+                                                  ("inverted", dimmer_config[CONF_INVERTED]),
+                                                  ("min_value_dp", min_value_dp))
+
         white_temperature_config = config[CONF_WHITE_TEMPERATURE]
         white_temperature_conf_struct = cg.StructInitializer(UyatLightConfigWhiteTemperature,
                                                              ("white_temperature_dp", await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES)),
@@ -228,15 +355,96 @@ async def to_code(config):
                                                              ("inverted", white_temperature_config[CONF_INVERTED]),
                                                              ("cold_white_temperature", white_temperature_config[CONF_COLD_WHITE_COLOR_TEMPERATURE]),
                                                              ("warm_white_temperature", white_temperature_config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
-    else:
-        white_temperature_conf_struct = cg.RawExpression("{}")
 
-    full_config_struct = cg.StructInitializer(UyatLightConfig,
-                                              ("dimmer_config", dimmer_conf_struct),
-                                              ("switch_config", switch_conf_struct),
-                                              ("color_config", color_conf_struct),
-                                              ("wt_config", white_temperature_conf_struct),
-                                              ("color_interlock", config[CONF_COLOR_INTERLOCK]))
+        full_config_struct = cg.StructInitializer(UyatLightCTConfig,
+                                                  ("switch_config", switch_conf_struct),
+                                                  ("dimmer_config", dimmer_conf_struct),
+                                                  ("wt_config", white_temperature_conf_struct))
+
+    elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGB:
+        switch_config = config[CONF_SWITCH]
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+
+        color_config = config[CONF_COLOR]
+        color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
+                                                 ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
+                                                 ("color_type", color_config[CONF_TYPE]))
+
+        full_config_struct = cg.StructInitializer(UyatLightRGBConfig,
+                                                  ("switch_config", switch_conf_struct),
+                                                  ("color_config", color_conf_struct))
+
+    elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGBW:
+        switch_config = config[CONF_SWITCH]
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+
+        dimmer_config = config[CONF_DIMMER]
+        if CONF_MIN_VALUE_DATAPOINT in config:
+            min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
+        else:
+            min_value_dp = cg.RawExpression("{}")
+
+        dimmer_conf_struct = cg.StructInitializer(UyatLightConfigDimmer,
+                                                  ("dimmer_dp", await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES)),
+                                                  ("min_value", dimmer_config[CONF_MIN_VALUE]),
+                                                  ("max_value", dimmer_config[CONF_MAX_VALUE]),
+                                                  ("inverted", dimmer_config[CONF_INVERTED]),
+                                                  ("min_value_dp", min_value_dp))
+
+        color_config = config[CONF_COLOR]
+        color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
+                                                 ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
+                                                 ("color_type", color_config[CONF_TYPE]))
+
+        full_config_struct = cg.StructInitializer(UyatLightRGBWConfig,
+                                                  ("switch_config", switch_conf_struct),
+                                                  ("dimmer_config", dimmer_conf_struct),
+                                                  ("color_config", color_conf_struct),
+                                                  ("color_interlock", config[CONF_COLOR_INTERLOCK]))
+
+    elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGBCT:
+        switch_config = config[CONF_SWITCH]
+        switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
+                                                  ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                                  ("inverted", switch_config[CONF_INVERTED]))
+
+        dimmer_config = config[CONF_DIMMER]
+        if CONF_MIN_VALUE_DATAPOINT in config:
+            min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
+        else:
+            min_value_dp = cg.RawExpression("{}")
+
+        dimmer_conf_struct = cg.StructInitializer(UyatLightConfigDimmer,
+                                                  ("dimmer_dp", await matching_datapoint_from_config(dimmer_config[CONF_DATAPOINT], DIMMER_DP_TYPES)),
+                                                  ("min_value", dimmer_config[CONF_MIN_VALUE]),
+                                                  ("max_value", dimmer_config[CONF_MAX_VALUE]),
+                                                  ("inverted", dimmer_config[CONF_INVERTED]),
+                                                  ("min_value_dp", min_value_dp))
+
+        color_config = config[CONF_COLOR]
+        color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
+                                                 ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
+                                                 ("color_type", color_config[CONF_TYPE]))
+
+        white_temperature_config = config[CONF_WHITE_TEMPERATURE]
+        white_temperature_conf_struct = cg.StructInitializer(UyatLightConfigWhiteTemperature,
+                                                             ("white_temperature_dp", await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES)),
+                                                             ("min_value", white_temperature_config[CONF_MIN_VALUE]),
+                                                             ("max_value", white_temperature_config[CONF_MAX_VALUE]),
+                                                             ("inverted", white_temperature_config[CONF_INVERTED]),
+                                                             ("cold_white_temperature", white_temperature_config[CONF_COLD_WHITE_COLOR_TEMPERATURE]),
+                                                             ("warm_white_temperature", white_temperature_config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
+
+        full_config_struct = cg.StructInitializer(UyatLightRGBCTConfig,
+                                                  ("switch_config", switch_conf_struct),
+                                                  ("dimmer_config", dimmer_conf_struct),
+                                                  ("color_config", color_conf_struct),
+                                                  ("wt_config", white_temperature_conf_struct),
+                                                  ("color_interlock", config[CONF_COLOR_INTERLOCK]))
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID], await cg.get_variable(config[CONF_UYAT_ID]), full_config_struct)
     await cg.register_component(var, config)
