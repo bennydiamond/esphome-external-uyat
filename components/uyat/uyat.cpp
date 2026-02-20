@@ -17,6 +17,11 @@ static const uint8_t NET_STATUS_CLOUD_CONNECTED = 0x04;
 static const uint8_t FAKE_WIFI_RSSI = 100;
 static const uint64_t UART_MAX_POLL_TIME_MS = 50;
 
+// Helper to skip verbose logs for heartbeat commands (reduce noise)
+static inline bool is_heartbeat_cmd_(uint8_t cmd) {
+  return cmd == static_cast<uint8_t>(UyatCommandType::HEARTBEAT);
+}
+
 #ifdef UYAT_DIAGNOSTICS_ENABLED
 static void add_unique_to_vector(std::vector<uint8_t> &vec, const uint8_t value) {
   if (std::find(vec.begin(), vec.end(), value) == vec.end()) {
@@ -171,9 +176,13 @@ std::size_t Uyat::validate_message_() {
   // valid message
   const size_t data_offset = 6u;
   const size_t data_len = checksum_offset - data_offset;
-  ESP_LOGV(TAG, "Received Uyat: CMD=0x%02X VERSION=%u LEN=%zu INIT_STATE=%u",
-           command, version, data_len,
-           static_cast<uint8_t>(this->init_state_));
+  
+  // Skip logging for heartbeat to reduce noise
+  if (!is_heartbeat_cmd_(command)) {
+    ESP_LOGV(TAG, "Received Uyat: CMD=0x%02X VERSION=%u LEN=%zu INIT_STATE=%u",
+             command, version, data_len,
+             static_cast<uint8_t>(this->init_state_));
+  }
   this->handle_command_(command, version, this->rx_message_, data_offset, data_len);
 
   // the whole message can now be removed
@@ -219,7 +228,7 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
 
   switch (command_type) {
   case UyatCommandType::HEARTBEAT:
-    ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", this->byte_at_(buffer, offset, 0));
+    //ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", this->byte_at_(buffer, offset, 0));
     this->protocol_version_ = version;
     if (this->byte_at_(buffer, offset, 0) == 0) {
       ESP_LOGI(TAG, "MCU restarted");
@@ -240,12 +249,12 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
       }
     }
     if (valid) {
-      this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+      this->product_ = std::string(buffer.begin() + offset, buffer.begin() + offset + len);
 #ifdef UYAT_DIAGNOSTICS_ENABLED
-      if (this->product_text_sensor_)
-      {
-        this->product_text_sensor_->publish_state(this->product_);
-      }
+          if (this->product_text_sensor_)
+          {
+            this->product_text_sensor_->publish_state(this->product_);
+          }
 #endif
     } else {
       this->product_ = R"({"p":"INVALID"})";
@@ -343,6 +352,7 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
   case UyatCommandType::WIFI_RESET:
   {
     ESP_LOGI(TAG, "WIFI_RESET");
+    this->reset_datapoint_tracking_();
     this->init_state_ = UyatInitState::INIT_PRODUCT;
     this->send_empty_command_(UyatCommandType::WIFI_RESET);
     this->schedule_heartbeat_(true);
@@ -364,6 +374,7 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
       update_pairing_mode_sensor_();
 #endif
 
+      this->reset_datapoint_tracking_();
       this->init_state_ = UyatInitState::INIT_PRODUCT;
       this->send_empty_command_(UyatCommandType::WIFI_SELECT);
       this->schedule_heartbeat_(true);
@@ -526,6 +537,7 @@ void Uyat::handle_datapoints_(const std::deque<uint8_t> &buffer, size_t offset, 
     if (datapoint)
     {
       ESP_LOGD(TAG, "MCU reported %s", datapoint->to_string().c_str());
+      this->acknowledge_datapoint_(datapoint.value());
       // drop update if datapoint is in ignore_mcu_datapoint_update list
       if (this->ignore_mcu_update_on_datapoints_.end() != std::find(this->ignore_mcu_update_on_datapoints_.begin(), this->ignore_mcu_update_on_datapoints_.end(), datapoint->number))
       {
@@ -540,7 +552,7 @@ void Uyat::handle_datapoints_(const std::deque<uint8_t> &buffer, size_t offset, 
         bool found = false;
         for (auto &other : this->cached_datapoints_) {
           if (other.matches(datapoint.value())) {
-            other = datapoint.value();
+            other.value = datapoint->value;
             found = true;
           }
         }
@@ -597,10 +609,13 @@ void Uyat::send_raw_command_(UyatCommand command) {
     break;
   }
 
-  ESP_LOGV(TAG, "Sending Uyat: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u",
-           static_cast<uint8_t>(command.cmd), version,
-           format_hex_pretty(command.payload).c_str(),
-           static_cast<uint8_t>(this->init_state_));
+  // Skip logging for heartbeat to reduce noise
+  if (!is_heartbeat_cmd_(static_cast<uint8_t>(command.cmd))) {
+    ESP_LOGV(TAG, "Sending Uyat: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u",
+             static_cast<uint8_t>(command.cmd), version,
+             format_hex_pretty(command.payload).c_str(),
+             static_cast<uint8_t>(this->init_state_));
+  }
 
   this->write_array(
       {0x55, 0xAA, version, (uint8_t)command.cmd, len_hi, len_lo});
@@ -640,7 +655,18 @@ void Uyat::process_command_queue_() {
   // by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() &&
       this->rx_message_.empty() && !this->expected_response_.has_value()) {
-    this->send_raw_command_(command_queue_.front());
+    UyatCommand command = command_queue_.front();
+    this->send_raw_command_(command);
+    // Start retry tracking after UART send (if requested and init is done)
+    if (command.pending_confirmation.has_value() &&
+        this->init_state_ == UyatInitState::INIT_DONE) {
+      auto pending = command.pending_confirmation.value();
+      ESP_LOGV(TAG, "[DP%u] Added to pending queue: retries_left=%u timeout_ms=%u queue_size=%zu",
+               pending.datapoint.number, pending.retries_left, pending.timeout_ms,
+               this->pending_datapoints_.size() + 1);
+      this->pending_datapoints_.push_back(pending);
+      this->start_datapoint_retry_timeout_(this->pending_datapoints_.back());
+    }
     if (!this->expected_response_.has_value())
       this->command_queue_.erase(command_queue_.begin());
   }
@@ -700,8 +726,10 @@ void Uyat::send_local_time_() {
 
 void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
   ESP_LOGD(TAG, "Setting %s", dp.to_string().c_str());
-  auto configured_datapoint = this->get_datapoint_(dp.number);
-  if (configured_datapoint.has_value()) {
+  auto *configured_datapoint = this->get_datapoint_(dp.number);
+  const DatapointRetryConfig *retry_config = nullptr;
+  
+  if (configured_datapoint != nullptr) {
     if (configured_datapoint->get_type() != dp.get_type())
     {
       ESP_LOGE(TAG, "Datapoint %u previously seen as %s setting as %s",
@@ -713,29 +741,184 @@ void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
     }
   }
 
-  this->send_datapoint_command_(dp.number, dp.get_type(), dp.value_to_payload());
+  // Check if retry config exists in map (configs are only set via outbound sends)
+  auto it = this->retry_configs_.find(dp.number);
+  if (it != this->retry_configs_.end()) {
+    retry_config = &it->second;
+    ESP_LOGV(TAG, "[DP%u] Found retry config", dp.number);
+  }
+
+  if (retry_config != nullptr) {
+    ESP_LOGV(TAG, "[DP%u] Using retry: enabled=%s count=%u timeout=%ums",
+             dp.number, retry_config->enabled ? "true" : "false",
+             retry_config->count, retry_config->timeout_ms);
+  } else {
+    ESP_LOGV(TAG, "[DP%u] No retry configuration", dp.number);
+  }
+
+  // Update the cached datapoint value BEFORE sending (so unchanged check works next time)
+  if (configured_datapoint != nullptr) {
+    configured_datapoint->value = dp.value;
+  }
+
+  this->send_datapoint_command_(dp, dp.value_to_payload(), retry_config);
 }
 
-optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
+void Uyat::set_datapoint_retry_config(uint8_t datapoint_id, bool enabled, uint8_t count, uint16_t timeout_ms) {
+  DatapointRetryConfig config{
+    .enabled = enabled,
+    .count = count,
+    .timeout_ms = timeout_ms
+  };
+
+  ESP_LOGD(TAG, "[DP%u] Retry config registered: enabled=%s count=%u timeout_ms=%u",
+           datapoint_id, enabled ? "true" : "false", count, timeout_ms);
+
+  // Store config in map to be applied when datapoint is sent
+  this->retry_configs_[datapoint_id] = config;
+  ESP_LOGV(TAG, "[DP%u] Stored in map, will apply on next outbound send",
+           datapoint_id);
+}
+
+PendingDatapointConfirmation* Uyat::find_pending_datapoint_by_id_(uint8_t datapoint_id) {
+  for (auto &pending : this->pending_datapoints_) {
+    if (pending.datapoint.number == datapoint_id) {
+      return &pending;
+    }
+  }
+  return nullptr;
+}
+
+PendingDatapointConfirmation* Uyat::find_pending_datapoint_matching_(const UyatDatapoint& dp) {
+  for (auto &pending : this->pending_datapoints_) {
+    if (pending.datapoint.number == dp.number && pending.datapoint.value == dp.value) {
+      return &pending;
+    }
+  }
+  return nullptr;
+}
+
+void Uyat::start_datapoint_retry_timeout_(const PendingDatapointConfirmation& pending) {
+  uint8_t dp_id = pending.datapoint.number;
+  // Cancel any lingering timeout for this datapoint
+  this->cancel_timeout(dp_id);
+  
+  ESP_LOGV(TAG, "[DP%u] Scheduled retry timeout in %ums", dp_id, pending.timeout_ms);
+  this->set_timeout(dp_id, pending.timeout_ms, [this, id = dp_id] {
+    this->handle_datapoint_retry_(id);
+  });
+}
+
+void Uyat::handle_datapoint_retry_(uint8_t datapoint_id) {
+  ESP_LOGV(TAG, "[DP%u] Retry timeout fired, checking pending queue", datapoint_id);
+  auto *pending = this->find_pending_datapoint_by_id_(datapoint_id);
+  if (pending == nullptr) {
+    ESP_LOGD(TAG, "[DP%u] Retry timeout fired but no pending entry found (queue_size=%zu)", 
+             datapoint_id, this->pending_datapoints_.size());
+    return;
+  }
+
+  // Validate that we found the correct datapoint (safety check for queue corruption/race conditions)
+  if (pending->datapoint.number != datapoint_id) {
+    ESP_LOGE(TAG, "[DP%u] ERROR: Found pending entry with mismatched datapoint ID! "
+             "Expected DP%u but queue has DP%u. This indicates queue corruption or race condition. "
+             "Skipping retry.",
+             datapoint_id, datapoint_id, pending->datapoint.number);
+    return;
+  }
+
+  if (pending->retries_left == 0u) {
+    ESP_LOGW(TAG, "[DP%u] No acknowledgement after all retries - giving up", datapoint_id);
+    for (auto it = this->pending_datapoints_.begin(); it != this->pending_datapoints_.end(); ++it) {
+      if (it->datapoint.number == datapoint_id) {
+        this->pending_datapoints_.erase(it);
+        break;
+      }
+    }
+    ESP_LOGV(TAG, "[DP%u] Removed from retry queue", datapoint_id);
+    return;
+  }
+
+  pending->retries_left--;
+  ESP_LOGV(TAG, "[DP%u] Decrementing retries: %u left", datapoint_id, pending->retries_left);
+  
+  // Make a copy of the datapoint before retrying - prevents issues if queue gets modified
+  UyatDatapoint retry_datapoint = pending->datapoint;
+  std::vector<uint8_t> retry_payload = retry_datapoint.value_to_payload();
+  
+  ESP_LOGI(TAG, "[DP%u] Retrying send (%u retries left, type=%s)",
+           datapoint_id, pending->retries_left, retry_datapoint.get_type_name());
+  
+  // Send the copy, not the pointer reference
+  this->send_datapoint_command_(retry_datapoint, retry_payload, nullptr);
+
+  this->start_datapoint_retry_timeout_(*pending);
+}
+
+void Uyat::acknowledge_datapoint_(const UyatDatapoint& dp) {
+  auto *pending = this->find_pending_datapoint_matching_(dp);
+  if (pending == nullptr) {
+    ESP_LOGV(TAG, "[DP%u] MCU reported value, no pending retry in queue", dp.number);
+    return;
+  }
+
+  uint8_t datapoint_id = pending->datapoint.number;
+  ESP_LOGD(TAG, "[DP%u] MCU acknowledged - canceling retry", datapoint_id);
+  this->cancel_timeout(datapoint_id);
+  
+  // Remove ALL pending entries for this datapoint (not just the first match)
+  // since MCU's acknowledgment means the value was processed regardless
+  for (auto it = this->pending_datapoints_.begin(); it != this->pending_datapoints_.end(); ) {
+    if (it->datapoint.number == datapoint_id) {
+      it = this->pending_datapoints_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+UyatDatapoint* Uyat::get_datapoint_(uint8_t datapoint_id) {
   for (auto &datapoint : this->cached_datapoints_) {
     if (datapoint.number == datapoint_id)
-      return datapoint;
+      return &datapoint;
   }
-  return {};
+  return nullptr;
 }
 
-void Uyat::send_datapoint_command_(uint8_t datapoint_id,
-                                   UyatDatapointType datapoint_type,
-                                   std::vector<uint8_t> data) {
+void Uyat::send_datapoint_command_(const UyatDatapoint& datapoint,
+                                   std::vector<uint8_t> data,
+                                   const DatapointRetryConfig* retry_config) {
   std::vector<uint8_t> buffer;
-  buffer.push_back(datapoint_id);
-  buffer.push_back(static_cast<uint8_t>(datapoint_type));
+  buffer.push_back(datapoint.number);
+  buffer.push_back(static_cast<uint8_t>(datapoint.get_type()));
   buffer.push_back(data.size() >> 8);
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
+  ESP_LOGV(TAG, "[DP%u] Built datapoint buffer", datapoint.number);
 
-  this->send_command_(UyatCommand{.cmd = UyatCommandType::DATAPOINT_DELIVER,
-                                  .payload = buffer});
+  bool setup_retry = retry_config != nullptr && retry_config->enabled &&
+                     retry_config->count > 0u && retry_config->timeout_ms > 0u;
+
+  if (retry_config == nullptr) {
+    ESP_LOGV(TAG, "[DP%u] Sending without retry", datapoint.number);
+  } else {
+    ESP_LOGD(TAG, "[DP%u] Sending with retry: count=%u timeout=%ums (queue_size=%zu)",
+             datapoint.number, retry_config->count, retry_config->timeout_ms,
+             this->pending_datapoints_.size());
+  }
+
+  UyatCommand command{
+    .cmd = UyatCommandType::DATAPOINT_DELIVER,
+    .payload = std::move(buffer)
+  };
+  if (setup_retry) {
+    command.pending_confirmation = PendingDatapointConfirmation{
+      .datapoint = datapoint,
+      .retries_left = retry_config->count,
+      .timeout_ms = retry_config->timeout_ms
+    };
+  }
+  this->send_command_(command);
 }
 
 void Uyat::register_datapoint_listener(const uint8_t datapoint_id,
@@ -887,6 +1070,15 @@ std::string Uyat::process_get_module_information_(const uint8_t *buffer, size_t 
   module_info_str.push_back('}');
 
   return module_info_str;
+}
+
+void Uyat::reset_datapoint_tracking_() {
+  // Cancel all pending datapoint retry timeouts
+  for (const auto &pending : this->pending_datapoints_) {
+    this->cancel_timeout(pending.datapoint.number);
+  }
+  // Clear pending confirmations
+  this->pending_datapoints_.clear();
 }
 
 void Uyat::schedule_heartbeat_(const bool initial)

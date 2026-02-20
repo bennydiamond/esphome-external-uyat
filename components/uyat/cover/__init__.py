@@ -7,13 +7,16 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    Uyat,
    uyat_ns,
    DPTYPE_BOOL,
    DPTYPE_UINT,
    DPTYPE_ENUM,
    DPTYPE_DETECT,
-   matching_datapoint_from_config
+   matching_datapoint_from_config,
+   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -101,6 +104,7 @@ CONTROL_CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=CONTROL_DP_TYPES["default"]): cv.one_of(
                         *CONTROL_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_OPEN_VALUE): cv.uint32_t,
@@ -118,6 +122,7 @@ DIRECTION_CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=DIRECTION_DP_TYPES["default"]): cv.one_of(
                         *DIRECTION_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -134,6 +139,7 @@ POSITION_CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=POSITION_DP_TYPES["default"]): cv.one_of(
                         *POSITION_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_POSITION_REPORT_DATAPOINT): cv.Any(cv.uint8_t,
@@ -143,6 +149,7 @@ POSITION_CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=POSITION_REPORT_DP_TYPES["default"]): cv.one_of(
                         *POSITION_REPORT_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -172,7 +179,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
+
     if control_config := config.get(CONF_CONTROL):
+        configure_datapoint_retry(parent, control_config)
         mapping = cg.StructInitializer(UyatCoverControlDpValueMapping,
                                        ("open_value", control_config.get(CONF_OPEN_VALUE)),
                                        ("close_value", control_config.get(CONF_CLOSE_VALUE)),
@@ -185,6 +195,7 @@ async def to_code(config):
         control_conf_struct = cg.RawExpression("{}")
 
     if direction_config := config.get(CONF_DIRECTION):
+        configure_datapoint_retry(parent, direction_config)
         direction_conf_struct = cg.StructInitializer(UyatCoverDirectionConfig,
                                                      ("matching_dp", await matching_datapoint_from_config(direction_config[CONF_DATAPOINT], DIRECTION_DP_TYPES)),
                                                      ("inverted", direction_config[CONF_INVERTED]))
@@ -193,15 +204,17 @@ async def to_code(config):
 
     position_config = config.get(CONF_POSITION)
     if CONF_POSITION_DATAPOINT in position_config:
+        configure_datapoint_retry(parent, position_config[CONF_POSITION_DATAPOINT])
         position_dp = await matching_datapoint_from_config(position_config[CONF_POSITION_DATAPOINT], POSITION_DP_TYPES)
     else:
         position_dp = cg.RawExpression("{}")
-    if CONF_POSITION_REPORT_DATAPOINT in config:
+    if CONF_POSITION_REPORT_DATAPOINT in position_config:
+        configure_datapoint_retry(parent, position_config[CONF_POSITION_REPORT_DATAPOINT])
         position_report_dp = await matching_datapoint_from_config(position_config[CONF_POSITION_REPORT_DATAPOINT], POSITION_REPORT_DP_TYPES)
     else:
         position_report_dp = cg.RawExpression("{}")
     if CONF_UNCALIBRATED_VALUE in position_config:
-        uncalibrated_value = config[CONF_UNCALIBRATED_VALUE]
+        uncalibrated_value = position_config[CONF_UNCALIBRATED_VALUE]
     else:
         uncalibrated_value = cg.RawExpression("{}")
 
@@ -219,5 +232,5 @@ async def to_code(config):
                                              ("direction_config", direction_conf_struct),
                                              ("restore_mode", config[CONF_RESTORE_MODE]))
 
-    var = await cover.new_cover(config, await cg.get_variable(config[CONF_UYAT_ID]), final_conf_struct)
+    var = await cover.new_cover(config, parent, final_conf_struct)
     await cg.register_component(var, config)

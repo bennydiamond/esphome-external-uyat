@@ -24,6 +24,10 @@ CONF_SWITCH = "switch"
 CONF_DIMMER = "dimmer"
 CONF_COLOR = "color"
 CONF_WHITE_TEMPERATURE = "white_temperature"
+CONF_RETRIES = "retries"
+CONF_ENABLED = "enabled"
+CONF_COUNT = "count"
+CONF_TIMEOUT = "timeout"
 
 UyatColorType = uyat_ns.enum("UyatColorType", is_class=True)
 
@@ -116,6 +120,14 @@ WHITE_TEMPERATURE_DP_TYPES = {
     "default": DPTYPE_UINT
 }
 
+RETRIES_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+        cv.Optional(CONF_COUNT, default=3): cv.int_range(min=1, max=255),
+        cv.Optional(CONF_TIMEOUT, default="300ms"): cv.positive_time_period_milliseconds,
+    }
+)
+
 
 UyatLight = uyat_ns.class_("UyatLight", light.LightOutput, cg.Component)
 
@@ -131,6 +143,7 @@ SWITCH_CONFIG_SCHEMA = cv.Schema(
             })
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
     }
 )
 
@@ -148,6 +161,7 @@ DIMMER_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_VALUE, default=0): cv.int_,
         cv.Optional(CONF_MAX_VALUE, default=255): cv.int_,
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
         cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.Any(cv.uint8_t,
             cv.Schema(
             {
@@ -172,6 +186,7 @@ COLOR_CONFIG_SCHEMA = cv.Schema(
             })
         ),
         cv.Required(CONF_TYPE): cv.enum(COLOR_TYPES, upper=True),
+        cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
     }
 )
 
@@ -191,6 +206,7 @@ WHITE_TEMPERATURE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_VALUE, default=255): cv.int_,
         cv.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
         cv.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
     }
 )
 
@@ -298,8 +314,26 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
+
+    def configure_datapoint_retry(dp_config):
+        if isinstance(dp_config, dict) and CONF_RETRIES in dp_config:
+            retries = dp_config[CONF_RETRIES]
+            timeout_ms = int(retries[CONF_TIMEOUT].total_milliseconds)
+            # Extract datapoint number from CONF_DATAPOINT
+            dp_number = dp_config[CONF_DATAPOINT]
+            if isinstance(dp_number, dict):
+                dp_number = dp_number[CONF_NUMBER]
+            cg.add(parent.set_datapoint_retry_config(
+                dp_number,
+                retries[CONF_ENABLED],
+                retries[CONF_COUNT],
+                timeout_ms,
+            ))
+
     if config[CONF_TYPE] == UYAT_LIGHT_TYPE_BINARY:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
@@ -307,11 +341,13 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_DIMMER:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
 
         dimmer_config = config[CONF_DIMMER]
+        configure_datapoint_retry(dimmer_config)
         if CONF_MIN_VALUE_DATAPOINT in config:
             min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
         else:
@@ -330,11 +366,13 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_CT:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
 
         dimmer_config = config[CONF_DIMMER]
+        configure_datapoint_retry(dimmer_config)
         if CONF_MIN_VALUE_DATAPOINT in config:
             min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
         else:
@@ -348,6 +386,7 @@ async def to_code(config):
                                                   ("min_value_dp", min_value_dp))
 
         white_temperature_config = config[CONF_WHITE_TEMPERATURE]
+        configure_datapoint_retry(white_temperature_config)
         white_temperature_conf_struct = cg.StructInitializer(UyatLightConfigWhiteTemperature,
                                                              ("white_temperature_dp", await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES)),
                                                              ("min_value", white_temperature_config[CONF_MIN_VALUE]),
@@ -363,11 +402,13 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGB:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
 
         color_config = config[CONF_COLOR]
+        configure_datapoint_retry(color_config)
         color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
                                                  ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
                                                  ("color_type", color_config[CONF_TYPE]))
@@ -378,11 +419,13 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGBW:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
 
         dimmer_config = config[CONF_DIMMER]
+        configure_datapoint_retry(dimmer_config)
         if CONF_MIN_VALUE_DATAPOINT in config:
             min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
         else:
@@ -396,6 +439,7 @@ async def to_code(config):
                                                   ("min_value_dp", min_value_dp))
 
         color_config = config[CONF_COLOR]
+        configure_datapoint_retry(color_config)
         color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
                                                  ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
                                                  ("color_type", color_config[CONF_TYPE]))
@@ -408,11 +452,13 @@ async def to_code(config):
 
     elif config[CONF_TYPE] == UYAT_LIGHT_TYPE_RGBCT:
         switch_config = config[CONF_SWITCH]
+        configure_datapoint_retry(switch_config)
         switch_conf_struct = cg.StructInitializer(UyatLightConfigSwitch,
                                                   ("switch_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
                                                   ("inverted", switch_config[CONF_INVERTED]))
 
         dimmer_config = config[CONF_DIMMER]
+        configure_datapoint_retry(dimmer_config)
         if CONF_MIN_VALUE_DATAPOINT in config:
             min_value_dp = await matching_datapoint_from_config(dimmer_config[CONF_MIN_VALUE_DATAPOINT], MIN_VALUE_DP_TYPES)
         else:
@@ -426,11 +472,13 @@ async def to_code(config):
                                                   ("min_value_dp", min_value_dp))
 
         color_config = config[CONF_COLOR]
+        configure_datapoint_retry(color_config)
         color_conf_struct = cg.StructInitializer(UyatLightConfigColor,
                                                  ("color_dp", await matching_datapoint_from_config(color_config[CONF_DATAPOINT], COLOR_DP_TYPES)),
                                                  ("color_type", color_config[CONF_TYPE]))
 
         white_temperature_config = config[CONF_WHITE_TEMPERATURE]
+        configure_datapoint_retry(white_temperature_config)
         white_temperature_conf_struct = cg.StructInitializer(UyatLightConfigWhiteTemperature,
                                                              ("white_temperature_dp", await matching_datapoint_from_config(white_temperature_config[CONF_DATAPOINT], WHITE_TEMPERATURE_DP_TYPES)),
                                                              ("min_value", white_temperature_config[CONF_MIN_VALUE]),
@@ -446,6 +494,6 @@ async def to_code(config):
                                                   ("wt_config", white_temperature_conf_struct),
                                                   ("color_interlock", config[CONF_COLOR_INTERLOCK]))
 
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], await cg.get_variable(config[CONF_UYAT_ID]), full_config_struct)
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], parent, full_config_struct)
     await cg.register_component(var, config)
     await light.register_light(var, config)

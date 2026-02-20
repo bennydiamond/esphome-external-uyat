@@ -14,13 +14,16 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    Uyat,
    uyat_ns,
    DPTYPE_BOOL,
    DPTYPE_UINT,
    DPTYPE_ENUM,
    DPTYPE_DETECT,
-   matching_datapoint_from_config
+   matching_datapoint_from_config,
+   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -69,8 +72,10 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_NUMBER): cv.uint8_t,
                     cv.Optional(CONF_DATAPOINT_TYPE, default=NUMBER_DP_TYPES["default"]): cv.one_of(
                         *NUMBER_DP_TYPES["allowed"], lower=True
-                    )
-                })
+                    ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
+                }
+            )
             ),
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -86,14 +91,17 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
+
     multiplier = 1.0
     if CONF_MULTIPLIER in config:
         multiplier = config[CONF_MULTIPLIER]
     elif CONF_SCALE in config:
         multiplier = 10 ** config[CONF_SCALE]
 
+    configure_datapoint_retry(parent, config[CONF_DATAPOINT])
     var = cg.new_Pvariable(config[CONF_ID],
-                           await cg.get_variable(config[CONF_UYAT_ID]),
+                           parent,
                            cg.StructInitializer(UyatNumberConfig,
                                                 ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], NUMBER_DP_TYPES)),
                                                 ("offset", config[CONF_OFFSET]),

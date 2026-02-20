@@ -11,13 +11,16 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    Uyat,
    uyat_ns,
    DPTYPE_BOOL,
    DPTYPE_UINT,
    DPTYPE_ENUM,
    DPTYPE_DETECT,
-   matching_datapoint_from_config
+   matching_datapoint_from_config,
+   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -62,8 +65,10 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_NUMBER): cv.uint8_t,
                     cv.Optional(CONF_DATAPOINT_TYPE, default=SELECT_DP_TYPES["default"]): cv.one_of(
                         *SELECT_DP_TYPES["allowed"], lower=True
-                    )
-                })
+                    ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
+                }
+            )
             ),
             cv.Required(CONF_OPTIONS): ensure_option_map,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -74,9 +79,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
     options_map = config[CONF_OPTIONS]
+
+    configure_datapoint_retry(parent, config[CONF_DATAPOINT])
     var = await select.new_select(config,
-                                  await cg.get_variable(config[CONF_UYAT_ID]),
+                                  parent,
                                   cg.StructInitializer(UyatSelectConfig,
                                                        ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SELECT_DP_TYPES)),
                                                        ("optimistic", config[CONF_OPTIMISTIC]),

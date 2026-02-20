@@ -7,6 +7,8 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    uyat_ns,
    Uyat,
    UyatDatapoint,
@@ -15,7 +17,8 @@ from .. import (
    EnumDatapointValue,
    DPTYPE_BOOL,
    DPTYPE_UINT,
-   DPTYPE_ENUM
+   DPTYPE_ENUM,
+   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -38,16 +41,19 @@ CONFIG_BUTTON_EXTENDED_DATAPOINT_SCHEMA = cv.typed_schema(
         {
             cv.Required(CONF_NUMBER): cv.uint8_t,
             cv.Required(CONF_TRIGGER_PAYLOAD): cv.boolean,
+            cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
         }),
         DPTYPE_UINT: cv.Schema(
         {
             cv.Required(CONF_NUMBER): cv.uint8_t,
             cv.Required(CONF_TRIGGER_PAYLOAD): cv.uint32_t,
+            cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
         }),
         DPTYPE_ENUM: cv.Schema(
         {
             cv.Required(CONF_NUMBER): cv.uint8_t,
             cv.Required(CONF_TRIGGER_PAYLOAD): cv.uint8_t,
+            cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
         }),
     },
     default_type = DPTYPE_BOOL,
@@ -67,6 +73,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
     dp_config = config.get(CONF_DATAPOINT)
     dp_type = dp_config.get(CONF_DATAPOINT_TYPE, None)
     payload_config = dp_config.get(CONF_TRIGGER_PAYLOAD, None)
@@ -74,11 +81,11 @@ async def to_code(config):
         UyatDatapointValue = cg.StructInitializer(
             BoolDatapointValue, ("value", payload_config)
         )
-    if dp_type==DPTYPE_UINT:
+    elif dp_type==DPTYPE_UINT:
         UyatDatapointValue = cg.StructInitializer(
             UIntDatapointValue, ("value", payload_config)
         )
-    if dp_type==DPTYPE_ENUM:
+    elif dp_type==DPTYPE_ENUM:
         UyatDatapointValue = cg.StructInitializer(
             EnumDatapointValue, ("value", payload_config)
         )
@@ -87,7 +94,8 @@ async def to_code(config):
     )
 
     var = await button.new_button(config,
-                                  await cg.get_variable(config[CONF_UYAT_ID]),
+                                  parent,
                                   cg.StructInitializer(UyatButtonConfig,
                                                        ("trigger_payload", UyatDatapointStruct)))
     await cg.register_component(var, config)
+    configure_datapoint_retry(parent, dp_config)

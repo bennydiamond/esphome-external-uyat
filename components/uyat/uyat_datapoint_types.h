@@ -13,6 +13,12 @@
 namespace esphome::uyat
 {
 
+struct DatapointRetryConfig {
+  bool enabled;
+  uint8_t count;
+  uint16_t timeout_ms;
+};
+
 // this is the actual value sent to the mcu
 enum class UyatDatapointType: uint8_t {
   RAW = 0x00,      // variable length

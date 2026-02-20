@@ -7,6 +7,8 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    uyat_ns,
    Uyat,
    DPTYPE_BOOL,
@@ -14,6 +16,7 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
+   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -43,7 +46,8 @@ CONFIG_SCHEMA = (
                     cv.Required(CONF_NUMBER): cv.uint8_t,
                     cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
                         *SWITCH_DP_TYPES["allowed"], lower=True
-                    )
+                    ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
             ),
         }
@@ -57,3 +61,4 @@ async def to_code(config):
                                          ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)))
     var = await switch.new_switch(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
     await cg.register_component(var, config)
+    configure_datapoint_retry(await cg.get_variable(config[CONF_UYAT_ID]), config[CONF_DATAPOINT])

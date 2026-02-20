@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <vector>
 #include <deque>
+#include <map>
 #include <variant>
 
 #include "esphome/core/component.h"
@@ -81,9 +82,16 @@ enum class UyatInitState : uint8_t {
   INIT_DONE,
 };
 
+struct PendingDatapointConfirmation {
+  UyatDatapoint datapoint;
+  uint8_t retries_left;
+  uint16_t timeout_ms;
+};
+
 struct UyatCommand {
   UyatCommandType cmd;
   std::vector<uint8_t> payload;
+  optional<PendingDatapointConfirmation> pending_confirmation;  // For DATAPOINT_DELIVER: pre-built retry metadata
 };
 
 template<typename... Ts> class FactoryResetAction;
@@ -120,6 +128,8 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void add_on_initialized_callback(std::function<void()> callback) {
     this->initialized_callback_.add(std::move(callback));
   }
+
+  void set_datapoint_retry_config(uint8_t datapoint_id, bool enabled, uint8_t count, uint16_t timeout_ms);
 
   void trigger_factory_reset(const FactoryResetType reset_type);
 
@@ -158,7 +168,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
  protected:
   void handle_input_buffer_();
   void handle_datapoints_(const std::deque<uint8_t> &buffer, size_t offset, size_t len);
-  optional<UyatDatapoint> get_datapoint_(uint8_t datapoint_id);
+  UyatDatapoint* get_datapoint_(uint8_t datapoint_id);
   // returns number of bytes to remove from the beginning of rx buffer
   std::size_t validate_message_();
 
@@ -169,16 +179,23 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void send_command_(const UyatCommand &command);
   void send_empty_command_(UyatCommandType command);
   void set_datapoint_value_(const UyatDatapoint& dp, const bool force = false);
-  void send_datapoint_command_(uint8_t datapoint_id, UyatDatapointType datapoint_type, std::vector<uint8_t> data);
+  void send_datapoint_command_(const UyatDatapoint& datapoint, std::vector<uint8_t> data,
+                               const DatapointRetryConfig* retry_config);
   void set_status_pin_();
   void send_wifi_status_(const uint8_t status);
   uint8_t get_wifi_rssi_();
   void report_wifi_connected_or_retry_(const uint32_t delay_ms);
   void report_cloud_connected_();
   void query_product_info_with_retries_();
+  void start_datapoint_retry_timeout_(const PendingDatapointConfirmation& pending);
+  void handle_datapoint_retry_(uint8_t datapoint_id);
+  void acknowledge_datapoint_(const UyatDatapoint& dp);
+  struct PendingDatapointConfirmation* find_pending_datapoint_by_id_(uint8_t datapoint_id);
+  struct PendingDatapointConfirmation* find_pending_datapoint_matching_(const UyatDatapoint& dp);
   std::string process_get_module_information_(const uint8_t *buffer, size_t len);
   void schedule_heartbeat_(const bool initial);
   void stop_heartbeats_();
+  void reset_datapoint_tracking_();  // Cancel all pending datapoint retries and clear state
 
 #ifdef UYAT_DIAGNOSTICS_ENABLED
   void update_pairing_mode_sensor_();
@@ -203,6 +220,8 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   std::string product_ = "";
   std::vector<UyatDatapointListener> listeners_;
   std::vector<UyatDatapoint> cached_datapoints_;
+  std::vector<PendingDatapointConfirmation> pending_datapoints_;
+  std::map<uint8_t, DatapointRetryConfig> retry_configs_;  // Retry configs by datapoint ID
   std::deque<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
   std::vector<UyatCommand> command_queue_;
