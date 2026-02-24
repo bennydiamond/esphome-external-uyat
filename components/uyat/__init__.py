@@ -48,6 +48,7 @@ UyatDatapoint = uyat_ns.class_("UyatDatapoint")
 FactoryResetType = uyat_ns.enum("FactoryResetType")
 Uyat = uyat_ns.class_("Uyat", cg.Component, uart.UARTDevice)
 MatchingDatapoint = uyat_ns.class_("MatchingDatapoint")
+DatapointRetryConfig = uyat_ns.struct("DatapointRetryConfig")
 UyatFactoryResetAction = uyat_ns.class_("FactoryResetAction", automation.Action)
 
 FACTORY_RESET_TYPES = {
@@ -156,7 +157,7 @@ def _validate_retry_timeout(value):
     return value
 
 RETRIES_SCHEMA = cv.Schema({
-    cv.Optional(CONF_ENABLED, default=False): cv.boolean,
+    cv.Required(CONF_ENABLED): cv.boolean,
     cv.Optional(CONF_COUNT, default=3): cv.int_range(min=1, max=10),
     cv.Optional(CONF_TIMEOUT, default="300ms"): cv.All(
         cv.positive_time_period,
@@ -165,22 +166,24 @@ RETRIES_SCHEMA = cv.Schema({
 })
 
 
-def configure_datapoint_retry(parent, dp_config):
-    """Helper to set retry config from datapoint config dict if retries block exists."""
-    # dp_config can be either an integer or a dict with CONF_NUMBER, CONF_DATAPOINT_TYPE, CONF_RETRIES
+def retry_config_struct_initializer(dp_config):
+    """Create a DatapointRetryConfig struct initializer from datapoint config."""
     if isinstance(dp_config, dict) and CONF_RETRIES in dp_config:
         retries = dp_config[CONF_RETRIES]
-        timeout_ms = int(retries[CONF_TIMEOUT].total_milliseconds)
-        # Extract datapoint number from structured dict
-        dp_number = dp_config.get(CONF_NUMBER, None)
-        if dp_number is None:
-            return  # No datapoint number found, skip retry config
-        cg.add(parent.set_datapoint_retry_config(
-            dp_number,
-            retries[CONF_ENABLED],
-            retries[CONF_COUNT],
-            timeout_ms,
-        ))
+        return cg.StructInitializer(
+            DatapointRetryConfig,
+            ("enabled", retries[CONF_ENABLED]),
+            ("count", retries[CONF_COUNT]),
+            ("timeout_ms", int(retries[CONF_TIMEOUT].total_milliseconds)),
+        )
+    else:
+        # Default: retry disabled
+        return cg.StructInitializer(
+            DatapointRetryConfig,
+            ("enabled", False),
+            ("count", 0),
+            ("timeout_ms", 0),
+        )
 
 
 def assign_declare_id(value):

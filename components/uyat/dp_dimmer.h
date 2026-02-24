@@ -1,5 +1,6 @@
 #pragma once
 
+#include "uyat_dp_retry.h"
 #include "uyat_datapoint_types.h"
 #include "dp_number.h"
 
@@ -31,7 +32,8 @@ struct DpDimmer
    DpDimmer(DpDimmer&&) = default;
    DpDimmer& operator=(DpDimmer&&) = default;
 
-   DpDimmer(BrightnessChangedCallback callback, MatchingDatapoint dimmer_dp, const uint32_t min_value, const uint32_t max_value, const bool inverted):
+   DpDimmer(BrightnessChangedCallback callback, MatchingDatapoint dimmer_dp, const uint32_t min_value, const uint32_t max_value, const bool inverted, const DatapointRetryConfig& retry_config):
+   retry_(dimmer_dp.number, retry_config, TAG),
    config_{std::move(dimmer_dp),
            min_value,
            max_value,
@@ -43,6 +45,13 @@ struct DpDimmer
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
+      retry_.init(&handler, [this]() {
+         if (!this->last_set_value_.has_value()) {
+            return false;
+         }
+         this->set_value(this->last_set_value_.value(), true);
+         return true;
+      });
       handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpNumber::TAG, "%s processing as dimmer", datapoint.to_string().c_str());
          if (!this->config_.matching_dp.matches(datapoint.get_type()))
@@ -64,6 +73,12 @@ struct DpDimmer
                last_received_value_ = 1.0f - *last_received_value_;
             }
             callback_(*last_received_value_);
+            
+            // Check if this is an ack for a pending retry
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == *last_received_value_) {
+               ESP_LOGD(DpDimmer::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
@@ -79,6 +94,12 @@ struct DpDimmer
                last_received_value_ = 1.0f - *last_received_value_;
             }
             callback_(*last_received_value_);
+            
+            // Check if this is an ack for a pending retry
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == *last_received_value_) {
+               ESP_LOGD(DpDimmer::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          {
@@ -88,7 +109,7 @@ struct DpDimmer
       });
    }
 
-   void set_value(float value_percent)
+   void set_value(float value_percent, bool already_in_retry_sequence = false)
    {
       if (this->handler_ == nullptr)
       {
@@ -135,6 +156,11 @@ struct DpDimmer
       {
          ESP_LOGW(DpNumber::TAG, "Unhandled datapoint type %s!", this->config_.matching_dp.to_string().c_str());
       }
+      
+      // Setup retry if enabled and not already in retry sequence
+      // Only schedule retry if we're actually changing the value (value differs from last MCU confirmation)
+      const bool value_changed = !this->last_received_value_.has_value() || this->last_received_value_.value() != value_percent;
+      this->retry_.schedule_if_needed(already_in_retry_sequence, value_changed);
    }
 
    std::optional<float> get_last_received_value() const
@@ -178,6 +204,8 @@ private:
 
    std::optional<float> last_received_value_;
    std::optional<float> last_set_value_;
+   
+   DatapointRetry retry_;
 };
 
 }

@@ -24,6 +24,7 @@ class UyatNumber : public number::Number, public Component {
     MatchingDatapoint matching_dp;
     float offset;
     float multiplier;
+    DatapointRetryConfig retry_config;
   };
 
   explicit UyatNumber(Uyat *parent, Config config);

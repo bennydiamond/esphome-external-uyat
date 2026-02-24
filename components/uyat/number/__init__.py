@@ -23,7 +23,7 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
-   configure_datapoint_retry,
+    retry_config_struct_initializer,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -99,13 +99,13 @@ async def to_code(config):
     elif CONF_SCALE in config:
         multiplier = 10 ** config[CONF_SCALE]
 
-    configure_datapoint_retry(parent, config[CONF_DATAPOINT])
     var = cg.new_Pvariable(config[CONF_ID],
                            parent,
                            cg.StructInitializer(UyatNumberConfig,
                                                 ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], NUMBER_DP_TYPES)),
                                                 ("offset", config[CONF_OFFSET]),
                                                 ("multiplier", multiplier),
+                                                ("retry_config", retry_config_struct_initializer(config[CONF_DATAPOINT])),
                                                 )
                           )
     await cg.register_component(var, config)

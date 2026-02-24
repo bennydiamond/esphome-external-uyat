@@ -18,7 +18,6 @@ from .. import (
    DPTYPE_BOOL,
    DPTYPE_UINT,
    DPTYPE_ENUM,
-   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -98,4 +97,3 @@ async def to_code(config):
                                   cg.StructInitializer(UyatButtonConfig,
                                                        ("trigger_payload", UyatDatapointStruct)))
     await cg.register_component(var, config)
-    configure_datapoint_retry(parent, dp_config)

@@ -9,7 +9,7 @@ UyatSensor::UyatSensor(Uyat *parent, Config config):
 parent_(*parent),
 dp_number_([this](const float value){this->on_value(value);},
             std::move(config.matching_dp),
-            0, 1.0f)
+            0, 1.0f, DatapointRetryConfig{})
 {}
 
 void UyatSensor::setup() {

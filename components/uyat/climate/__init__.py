@@ -29,7 +29,6 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
-   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -368,7 +367,6 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_UYAT_ID])
 
     if switch_config := config.get(CONF_SWITCH):
-        configure_datapoint_retry(parent, switch_config)
         switch_conf_struct = cg.StructInitializer(UyatClimateSwitchConfig,
             ("matching_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
             ("inverted", switch_config[CONF_INVERTED]))
@@ -394,7 +392,6 @@ async def to_code(config):
 
     if active_state_config := config.get(CONF_ACTIVE_STATE_DATAPOINT):
         active_state_dp_config = active_state_config.get(CONF_DATAPOINT)
-        configure_datapoint_retry(parent, active_state_config)
         if (heating_value_mapping := active_state_config.get(CONF_HEATING_VALUE)) is None:
             # never set to None, default is 1
             heating_value_mapping = cg.uint32(1)
@@ -422,7 +419,6 @@ async def to_code(config):
 
     if temperature_config := config.get(CONF_TEMPERATURE):
         target_temperature_config = temperature_config.get(CONF_TARGET_TEMPERATURE)
-        configure_datapoint_retry(parent, target_temperature_config)
         tt_conf_struct = cg.StructInitializer(TemperatureDpConfig,
                                               ("matching_dp", await matching_datapoint_from_config(target_temperature_config.get(CONF_DATAPOINT), TEMPERATURE_DP_TYPES)),
                                               ("offset", target_temperature_config.get(CONF_OFFSET, 0.0)),
@@ -430,7 +426,6 @@ async def to_code(config):
                                              )
 
         if current_temperature_config := temperature_config.get(CONF_CURRENT_TEMPERATURE):
-            configure_datapoint_retry(parent, current_temperature_config)
             ct_conf_struct = cg.StructInitializer(TemperatureDpConfig,
                                                   ("matching_dp", await matching_datapoint_from_config(current_temperature_config.get(CONF_DATAPOINT), TEMPERATURE_DP_TYPES)),
                                                   ("offset", current_temperature_config.get(CONF_OFFSET, 0.0)),
@@ -450,7 +445,6 @@ async def to_code(config):
 
     if preset_config := config.get(CONF_PRESET, {}):
         if boost_config := preset_config.get(CONF_BOOST, {}):
-            configure_datapoint_retry(parent, boost_config)
             if (boost_temperature := boost_config.get(CONF_TEMPERATURE)) is None:
                 boost_temperature = cg.RawExpression("{}")
             boost_conf_struct = cg.StructInitializer(SinglePresetConfig,
@@ -461,7 +455,6 @@ async def to_code(config):
             boost_conf_struct = cg.RawExpression("{}")
 
         if eco_config := preset_config.get(CONF_ECO, {}):
-            configure_datapoint_retry(parent, eco_config)
             if (eco_temperature := eco_config.get(CONF_TEMPERATURE)) is None:
                 eco_temperature = cg.RawExpression("{}")
             eco_conf_struct = cg.StructInitializer(SinglePresetConfig,
@@ -472,7 +465,6 @@ async def to_code(config):
             eco_conf_struct = cg.RawExpression("{}")
 
         if sleep_config := preset_config.get(CONF_SLEEP, {}):
-            configure_datapoint_retry(parent, sleep_config)
             if (sleep_temperature := sleep_config.get(CONF_TEMPERATURE)) is None:
                 sleep_temperature = cg.RawExpression("{}")
             sleep_conf_struct = cg.StructInitializer(SinglePresetConfig,
@@ -491,7 +483,6 @@ async def to_code(config):
 
     if swing_mode_config := config.get(CONF_SWING_MODE):
         if vertical_config := swing_mode_config.get(CONF_VERTICAL):
-            configure_datapoint_retry(parent, vertical_config)
             vertical_swing_conf_struct = cg.StructInitializer(AnySwingConfig,
                                                               ("matching_dp", await matching_datapoint_from_config(vertical_config.get(CONF_DATAPOINT), SWING_DP_TYPES)),
                                                               ("inverted", vertical_config.get(CONF_INVERTED)))
@@ -499,7 +490,6 @@ async def to_code(config):
             vertical_swing_conf_struct = cg.RawExpression("{}")
 
         if horizontal_config := swing_mode_config.get(CONF_HORIZONTAL):
-            configure_datapoint_retry(parent, horizontal_config)
             horizontal_swing_conf_struct = cg.StructInitializer(AnySwingConfig,
                                                               ("matching_dp", await matching_datapoint_from_config(horizontal_config.get(CONF_DATAPOINT), SWING_DP_TYPES)),
                                                               ("inverted", horizontal_config.get(CONF_INVERTED)))
@@ -513,7 +503,6 @@ async def to_code(config):
         swings_conf_struct = cg.RawExpression("{}")
 
     if fan_mode_config := config.get(CONF_FAN_MODE):
-        configure_datapoint_retry(parent, fan_mode_config)
         if (auto_value_mapping := fan_mode_config.get(CONF_AUTO_VALUE)) is None:
             auto_value_mapping = cg.RawExpression("{}")
         if (low_value_mapping := fan_mode_config.get(CONF_LOW_VALUE)) is None:

@@ -215,6 +215,123 @@ In general I recommend to specify the type explicitly, as the default type is no
 In some cases it is allowed to specify `datapoint_type: detect`. While this sounds convenient, I would advise *not to use it* with components that send a datapoint value to the MCU (most of them do). Here's why: sending datapoint value to the MCU can only be done if the type is known. So if the MCU does not report a specific datapoint first (some devices do that), then you will never be able to set it.
 This means you can safely use it with sensor and binary_sensor, or when you're sure your device always reports the datapoint value first.
 
+## Retry Configuration
+For components that send values to the MCU (switch, number, select, fan, light, etc.), you can configure automatic retry behavior. When enabled, if the MCU doesn't acknowledge a value change within a specified timeout, Uyat will automatically resend the command.
+
+### Retry Configuration Options
+Under the `retries` key, you can specify:
+- `enabled` (required, boolean) - Enable or disable automatic retries for this datapoint.
+- `count` (optional, number) - Number of retry attempts after the initial send. Default is `3`, valid range is 1-10.
+- `timeout` (optional, time_period) - Timeout in milliseconds before triggering a retry. Default is `300ms`, valid range is 30ms-10000ms.
+
+The entire `retries` block is optional. If it is omitted, retries are disabled for that datapoint. If it is present, `enabled` must be specified; when set to `False`, retries are disabled for that datapoint.
+
+### How Retries Work
+1. When you set a value on a component (e.g., turn on a switch), it sends the command to the MCU.
+2. If the MCU doesn't report back the new state within the timeout period, Uyat will resend the command.
+3. This process repeats up to `count` times.
+4. When the MCU finally acknowledges the value (by reporting it back), the retry timer is canceled.
+5. If no acknowledgment is received after all retries are exhausted, a warning is logged.
+
+This is useful for devices with unreliable MCU communication or high latency connections where commands might occasionally be lost.
+Retries are an advanced feature and some TuyaMCU implementations do not consistently acknowledge all datapoint writes. Before enabling retries, verify that the target datapoint normally reports an acknowledgment on your device.
+
+*Warning:* some datapoints (for example, button-style actions) behave like event toggles. Sending the same payload can still trigger different MCU actions, so automatic retries may repeat the toggle and cause unintended behavior.
+
+### Retry Configuration Examples
+
+#### Switch with Retries
+```yaml
+switch:
+  - platform: uyat
+    name: "Main Relay"
+    datapoint:
+      number: 16
+      datapoint_type: bool
+      retries:
+        enabled: True
+        count: 5
+        timeout: 500ms
+```
+
+#### Number with Retries
+```yaml
+number:
+  - platform: uyat
+    name: "Volume"
+    datapoint:
+      number: 43
+      datapoint_type: value
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+    min_value: 0
+    max_value: 100
+    step: 10
+```
+
+#### Select with Retries
+```yaml
+select:
+  - platform: uyat
+    name: "Cleaning Mode"
+    datapoint:
+      number: 25
+      datapoint_type: enum
+      retries:
+        enabled: True
+        count: 4
+        timeout: 400ms
+    options:
+      0: "Global Sweep"
+      1: "Edge Sweep"
+      2: "Mopping"
+```
+
+#### Light with Retries (Dimmer)
+```yaml
+light:
+  - platform: uyat
+    name: "Bedroom Lamp"
+    type: dimmer
+    switch:
+      datapoint: 1
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+    dimmer:
+      datapoint: 2
+      min_value: 0
+      max_value: 255
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+```
+
+#### Fan with Speed Control and Retries
+```yaml
+fan:
+  - platform: uyat
+    name: "Ceiling Fan"
+    switch:
+      datapoint: 1
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+    speed:
+      datapoint: 5
+      min_value: 1
+      max_value: 3
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+```
+
 # Components
 ## Binary Sensor
 When creating a binary sensor entity (ie. a true/false value) you need to specify:
@@ -282,6 +399,7 @@ When creating a number entity, you need to specify:
 - `multiplier` (optional, exclusive with `scale`) - the value received from the MCU will be multiplied by this number and the result will be set as the entity state. The value set to the MCU will be divided by this number before sending.
 - `scale` (optional, exclusive with `multiplier`) - same as `multiplier`, but sets the multiplier to 10^scale
 - `offset` (optional) - the value received from the MCU will be be increased by `offset`. The value set to the MCU will be decreased by `offset`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - all other options from the [Esphome Number](https://esphome.io/components/number/)
 
 Example yaml:
@@ -300,6 +418,19 @@ number:
     entity_category: config
     device_class: volume
     icon: mdi:volume-high
+
+  - platform: uyat
+    name: "Volume with Retries"
+    datapoint:
+      number: 44
+      datapoint_type: value
+      retries:
+        enabled: True
+        count: 3
+        timeout: 300ms
+    min_value: 0
+    max_value: 100
+    step: 10
 ```
 
 ## Select
@@ -307,6 +438,7 @@ When creating a select entity you need to specify:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `enum`.
 - `options` (required) - the mapping between the MCU values and the entity values
 - `optimistic` (optional, bool) - if True, then setting the entity value will take effect immediately, without waiting for the MCU to answer. Default is false.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - all other options from the [Esphome Select](https://esphome.io/components/select/)
 
 Example yaml:
@@ -324,6 +456,20 @@ select:
       3: "Auto Recharging"
       4: "Spot Sweep"
       5: "Standby"
+
+  - platform: uyat
+    name: "Cleaning Mode with Retries"
+    datapoint:
+      number: 26
+      datapoint_type: enum
+      retries:
+        enabled: True
+        count: 4
+        timeout: 400ms
+    options:
+      0: "Global Sweep"
+      1: "Edge Sweep"
+      2: "Mopping"
 ```
 
 ## Sensor
@@ -386,6 +532,7 @@ sensor:
 ## Switch
 When creating a switch entity you need to specify:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - all other options from the [Esphome Switch](https://esphome.io/components/switch/)
 
 Note that handling of the switch datapoint is the same as of the binary sensor's datapoint, ie. the 0 values are treated as `False`, non-0 as `True`.
@@ -399,6 +546,16 @@ switch:
       number: 16
       datapoint_type: bool
     name: Relay
+
+  - platform: uyat
+    datapoint:
+      number: 20
+      datapoint_type: bool
+      retries:
+        enabled: True
+        count: 5
+        timeout: 500ms
+    name: "Relay with Retries"
 ```
 
 ## Text Sensor
@@ -696,6 +853,7 @@ There are currently no additional generic options for fans, you can only apply:
 Most devices have an on/off switch as a separate datapoint.
 You need to specify it under the `switch` key:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "off"). If not specified, defaults to `False`.
 
 Example yaml:
@@ -711,6 +869,7 @@ fan:
 The fan devices that can oscillate have a datapoint for it.
 You need to specify it under the `oscillation` key:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "off"). If not specified, defaults to `False`.
 
 Example yaml:
@@ -726,6 +885,7 @@ fan:
 Some ceiling fans can move in any of two directions which can be controlled by a datapoint.
 You need to specify it under the `direction` key:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `bool`, `value`, `enum`. The default type is `bool`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - `inverted` (optional, boolean) - set to True if the logic of this datapoint is inverted (ie. `True` or `1` means "reverse"). If not specified, defaults to `False`.
 
 Example yaml:
@@ -741,6 +901,7 @@ fan:
 Some fans allow users to specify the rotation speed, by either selecting on of the presets or by specifying the percentage.
 In both cases the datapoint need to be specified under the `speek` key:
 - `datapoint` (required) - either [the short](#short-form) or [long form](#long-form). Allowed types: `detect`, `value`, `enum`. The default type is `value`.
+- `retries` (optional) - Configure [retry behavior](#retry-configuration) for value changes. See the [Retry Configuration](#retry-configuration) section for details.
 - `min_value` (optional, number) - the exact value that MCU uses for the "lowest speed". If not specified, `1` is used.
 - `max_value` (optional, number) - the exact value that MCU uses for the "highest speed". If not specified, `100` is used.
 
@@ -752,6 +913,10 @@ fan:
       datapoint:
         number: 11
         datapoint_type: enum
+        retries:
+          enabled: True
+          count: 3
+          timeout: 300ms
       min_value: 0
       max_value: 3
 ```
@@ -761,6 +926,8 @@ fan:
 
 Different subsections are required depending on which datapoints are available for your light
 - `type` (required) - the type of light to interface. This setting determines what subsections are required and optional. Allowed types: `binary`, `dimmer`, `ct`, `rgb`, `rgbw`, `rgbct`.
+
+All datapoint blocks in the light configuration support the optional `retries` settings described in [Retry Configuration](#retry-configuration).
 
 ### type: binary
 - `switch` (optional) - the section containing the settings for the binary control of the light (ON/OFF):
@@ -797,13 +964,25 @@ light:
     type: dimmer
     name: "Dimmer"
     dimmer:
-      datapoint: 2
+      datapoint:
+        number: 2
+        datapoint_type: value
+        retries:
+          enabled: True
+          count: 3
+          timeout: 300ms
       min_value: 1
       max_value: 1000
       inverted: false
       min_value_datapoint: 2
     switch:
-      datapoint: 1
+      datapoint:
+        number: 1
+        datapoint_type: bool
+        retries:
+          enabled: True
+          count: 3
+          timeout: 300ms
       inverted: false
 ```
 

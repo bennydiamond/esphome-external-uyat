@@ -3,7 +3,7 @@ from esphome.components import fan
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_INVERTED, CONF_MIN_VALUE, CONF_MAX_VALUE
 
-from .. import CONF_UYAT_ID, CONF_DATAPOINT, CONF_DATAPOINT_TYPE, CONF_RETRIES, RETRIES_SCHEMA, Uyat, uyat_ns, DPTYPE_BOOL, DPTYPE_ENUM, DPTYPE_UINT, DPTYPE_DETECT, matching_datapoint_from_config, configure_datapoint_retry
+from .. import CONF_UYAT_ID, CONF_DATAPOINT, CONF_DATAPOINT_TYPE, CONF_RETRIES, RETRIES_SCHEMA, Uyat, uyat_ns, DPTYPE_BOOL, DPTYPE_ENUM, DPTYPE_UINT, DPTYPE_DETECT, matching_datapoint_from_config, retry_config_struct_initializer
 
 DEPENDENCIES = ["uyat"]
 
@@ -144,37 +144,37 @@ async def to_code(config):
 
     if CONF_SPEED in config:
         speed_config = config[CONF_SPEED]
-        configure_datapoint_retry(parent, speed_config)
         speed_conf_struct = cg.StructInitializer(UyatFanSpeedConfig,
                                                  ("matching_dp", await matching_datapoint_from_config(speed_config[CONF_DATAPOINT], SPEED_DP_TYPES)),
                                                  ("min_value", speed_config[CONF_MIN_VALUE]),
-                                                 ("max_value", speed_config[CONF_MAX_VALUE]))
+                                                 ("max_value", speed_config[CONF_MAX_VALUE]),
+                                                 ("retry_config", retry_config_struct_initializer(speed_config[CONF_DATAPOINT])))
     else:
         speed_conf_struct = cg.RawExpression("{}")
 
     if CONF_SWITCH in config:
         switch_config = config[CONF_SWITCH]
-        configure_datapoint_retry(parent, switch_config)
         switch_conf_struct = cg.StructInitializer(UyatFanSwitchConfig,
                                                   ("matching_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
-                                                  ("inverted", switch_config[CONF_INVERTED]))
+                                                  ("inverted", switch_config[CONF_INVERTED]),
+                                                  ("retry_config", retry_config_struct_initializer(switch_config[CONF_DATAPOINT])))
     else:
         switch_conf_struct = cg.RawExpression("{}")
     if CONF_OSCILLATION in config:
         oscillation_config = config[CONF_OSCILLATION]
-        configure_datapoint_retry(parent, oscillation_config)
         oscillation_conf_struct = cg.StructInitializer(UyatFanOscillationConfig,
                                                        ("matching_dp", await matching_datapoint_from_config(oscillation_config[CONF_DATAPOINT], OSCILLATION_DP_TYPES)),
-                                                       ("inverted", oscillation_config[CONF_INVERTED]))
+                                                       ("inverted", oscillation_config[CONF_INVERTED]),
+                                                       ("retry_config", retry_config_struct_initializer(oscillation_config[CONF_DATAPOINT])))
     else:
         oscillation_conf_struct = cg.RawExpression("{}")
 
     if CONF_DIRECTION in config:
         direction_config = config[CONF_DIRECTION]
-        configure_datapoint_retry(parent, direction_config)
         direction_conf_struct = cg.StructInitializer(UyatFanDirectionConfig,
                                                      ("matching_dp", await matching_datapoint_from_config(direction_config[CONF_DATAPOINT], DIRECTION_DP_TYPES)),
-                                                     ("inverted", direction_config[CONF_INVERTED]))
+                                                     ("inverted", direction_config[CONF_INVERTED]),
+                                                     ("retry_config", retry_config_struct_initializer(direction_config[CONF_DATAPOINT])))
     else:
         direction_conf_struct = cg.RawExpression("{}")
 

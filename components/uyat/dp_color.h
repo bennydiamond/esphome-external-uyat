@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "uyat_dp_retry.h"
 #include "uyat_datapoint_types.h"
 
 #include <functional>
@@ -58,7 +59,8 @@ struct DpColor
 
    using Callback = std::function<void(const Value&)>;
 
-   DpColor(Callback callback, MatchingDatapoint color_dp, const UyatColorType color_type):
+   DpColor(Callback callback, MatchingDatapoint color_dp, const UyatColorType color_type, const DatapointRetryConfig& retry_config):
+   retry_(color_dp.number, retry_config, TAG),
    config_{std::move(color_dp), color_type},
    callback_(callback)
    {}
@@ -66,6 +68,13 @@ struct DpColor
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
+      retry_.init(&handler, [this]() {
+         if (!this->last_set_value_.has_value()) {
+            return false;
+         }
+         this->set_value(this->last_set_value_.value(), true);
+         return true;
+      });
       handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpColor::TAG, "%s processing as color", datapoint.to_string().c_str());
 
@@ -87,6 +96,13 @@ struct DpColor
             {
                this->last_received_value_ = new_value;
                callback_(*new_value);
+               
+               // Check if this is an ack for a pending retry
+               if (this->last_set_value_.has_value() && this->last_set_value_.value().r == new_value->r &&
+                   this->last_set_value_.value().g == new_value->g && this->last_set_value_.value().b == new_value->b) {
+                  ESP_LOGD(DpColor::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+                  this->retry_.cancel();
+               }
             }
             else
             {
@@ -101,7 +117,7 @@ struct DpColor
       });
    }
 
-   void set_value(const Value& v)
+   void set_value(const Value& v, bool already_in_retry_sequence = false)
    {
       this->last_set_value_ = v;
       if (this->handler_ == nullptr)
@@ -133,6 +149,15 @@ struct DpColor
                                        StringDatapointValue{to_raw_rgbhsv(v)}
                                        });
       }
+      
+      // Setup retry if enabled and not already in retry sequence
+      // Only schedule retry if we're actually changing the value (value differs from last MCU confirmation)
+      const auto last_value = this->get_last_received_value();
+      bool value_changed = !last_value.has_value() ||
+                          last_value.value().r != v.r ||
+                          last_value.value().g != v.g ||
+                          last_value.value().b != v.b;
+      this->retry_.schedule_if_needed(already_in_retry_sequence, value_changed);
    }
 
    std::optional<Value> get_last_set_value() const
@@ -233,6 +258,7 @@ private:
       return decode_as_rgb_(raw_value);
    }
 
+   DatapointRetry retry_;
    Config config_;
    Callback callback_;
 

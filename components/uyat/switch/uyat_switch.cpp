@@ -11,7 +11,8 @@ UyatSwitch::UyatSwitch(Uyat *parent, Config config):
 parent_(*parent),
 dp_switch_([this](const bool value){this->on_value(value);},
             std::move(config.matching_dp),
-            false)
+            false,
+            config.retry_config)
 {}
 
 void UyatSwitch::setup() {

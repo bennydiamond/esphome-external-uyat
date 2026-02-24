@@ -18,24 +18,28 @@ class UyatFan : public Component, public fan::Fan {
     MatchingDatapoint matching_dp;
     uint32_t min_value;
     uint32_t max_value;
+    DatapointRetryConfig retry_config;
   };
 
   struct SwitchConfig
   {
     MatchingDatapoint matching_dp;
     bool inverted;
+    DatapointRetryConfig retry_config;
   };
 
   struct OscillationConfig
   {
     MatchingDatapoint matching_dp;
     bool inverted;
+    DatapointRetryConfig retry_config;
   };
 
   struct DirectionConfig
   {
     MatchingDatapoint matching_dp;
     bool inverted;
+    DatapointRetryConfig retry_config;
   };
 
   struct Config

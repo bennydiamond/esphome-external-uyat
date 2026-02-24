@@ -16,7 +16,7 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
-   configure_datapoint_retry,
+   retry_config_struct_initializer,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -58,7 +58,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     config_struct = cg.StructInitializer(UyatSwitchConfig,
-                                         ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)))
+                                         ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
+                                         ("retry_config", retry_config_struct_initializer(config[CONF_DATAPOINT])))
     var = await switch.new_switch(config, await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
     await cg.register_component(var, config)
-    configure_datapoint_retry(await cg.get_variable(config[CONF_UYAT_ID]), config[CONF_DATAPOINT])

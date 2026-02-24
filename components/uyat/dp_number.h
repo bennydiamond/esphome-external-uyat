@@ -2,6 +2,7 @@
 
 #include <functional>
 
+#include "uyat_dp_retry.h"
 #include "uyat_datapoint_types.h"
 
 namespace esphome::uyat
@@ -28,6 +29,13 @@ struct DpNumber
    void init(DatapointHandler& handler)
    {
       handler_ = &handler;
+      retry_.init(&handler, [this]() {
+         if (!this->last_set_value_.has_value()) {
+            return false;
+         }
+         this->set_value(this->last_set_value_.value(), true);
+         return true;
+      });
       handler.register_datapoint_listener(this->config_.matching_dp, [this](const UyatDatapoint &datapoint) {
          ESP_LOGV(DpNumber::TAG, "%s processing as number", datapoint.to_string().c_str());
 
@@ -46,6 +54,11 @@ struct DpNumber
             }
             this->last_received_value_ = calculate_logical_value(dp_value->value);
             callback_(last_received_value_.value());
+
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == this->last_received_value_.value()) {
+               ESP_LOGD(DpNumber::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          if (auto * dp_value = std::get_if<UIntDatapointValue>(&datapoint.value))
@@ -57,6 +70,11 @@ struct DpNumber
             }
             this->last_received_value_ = calculate_logical_value(dp_value->value);
             callback_(last_received_value_.value());
+
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == this->last_received_value_.value()) {
+               ESP_LOGD(DpNumber::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          if (auto * dp_value = std::get_if<EnumDatapointValue>(&datapoint.value))
@@ -68,6 +86,11 @@ struct DpNumber
             }
             this->last_received_value_ = calculate_logical_value(dp_value->value);
             callback_(last_received_value_.value());
+
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == this->last_received_value_.value()) {
+               ESP_LOGD(DpNumber::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          if (auto * dp_value = std::get_if<BitmapDatapointValue>(&datapoint.value))
@@ -79,6 +102,11 @@ struct DpNumber
             }
             this->last_received_value_ = calculate_logical_value(dp_value->value);
             callback_(last_received_value_.value());
+
+            if (this->last_set_value_.has_value() && this->last_set_value_.value() == this->last_received_value_.value()) {
+               ESP_LOGD(DpNumber::TAG, "[DP%u] MCU confirmed value, canceling retry", this->config_.matching_dp.number);
+               this->retry_.cancel();
+            }
          }
          else
          {
@@ -103,7 +131,7 @@ struct DpNumber
       return config_;
    }
 
-   void set_value(const float value, const bool forced = false)
+   void set_value(const float value, const bool already_in_retry_sequence = false)
    {
       if (this->handler_ == nullptr)
       {
@@ -124,7 +152,7 @@ struct DpNumber
          this->handler_->set_datapoint_value(UyatDatapoint{
             this->config_.matching_dp.number,
             BitmapDatapointValue{raw_value}
-         }, forced);
+         }, already_in_retry_sequence);
       }
       else
       if (this->config_.matching_dp.matches(UyatDatapointType::BOOLEAN))
@@ -132,32 +160,37 @@ struct DpNumber
          this->handler_->set_datapoint_value(UyatDatapoint{
             this->config_.matching_dp.number,
             BoolDatapointValue{raw_value != 0u}
-         }, forced);
+         }, already_in_retry_sequence);
       }
       else if (this->config_.matching_dp.matches(UyatDatapointType::INTEGER))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
             this->config_.matching_dp.number,
             UIntDatapointValue{raw_value}
-         }, forced);
+         }, already_in_retry_sequence);
       }
       else if (this->config_.matching_dp.matches(UyatDatapointType::ENUM))
       {
          this->handler_->set_datapoint_value(UyatDatapoint{
             this->config_.matching_dp.number,
             EnumDatapointValue{static_cast<uint8_t>(raw_value)}
-         }, forced);
+         }, already_in_retry_sequence);
       }
       else
       {
          ESP_LOGW(DpNumber::TAG, "Unhandled datapoint type %s!", this->config_.matching_dp.to_string().c_str());
       }
+
+      const auto last_value = this->get_last_received_value();
+      const bool value_changed = !last_value.has_value() || last_value.value() != value;
+      this->retry_.schedule_if_needed(already_in_retry_sequence, value_changed);
    }
 
    DpNumber(DpNumber&&) = default;
    DpNumber& operator=(DpNumber&&) = default;
 
-   DpNumber(const OnValueCallback& callback, MatchingDatapoint&& matching_dp, const float offset, const float multiplier):
+   DpNumber(const OnValueCallback& callback, MatchingDatapoint&& matching_dp, const float offset, const float multiplier, const DatapointRetryConfig& retry_config):
+   retry_(matching_dp.number, retry_config, TAG),
    config_{std::move(matching_dp), offset, multiplier},
    callback_(callback)
    {}
@@ -169,6 +202,7 @@ private:
       return (float(value) / this->config_.multiplier) + this->config_.offset;
    }
 
+   DatapointRetry retry_;
    Config config_;
    OnValueCallback callback_;
 

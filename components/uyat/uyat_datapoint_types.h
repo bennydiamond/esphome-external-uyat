@@ -416,6 +416,10 @@ struct DatapointHandler
 
   virtual void register_datapoint_listener(const MatchingDatapoint& matching_dp, const OnDatapointCallback& callback) = 0;
   virtual void set_datapoint_value(const UyatDatapoint& dp, const bool forced = false) = 0;
+  
+  // Distributed retry support - allows DpSwitch/DpNumber/etc to manage their own retry timeouts
+  virtual void schedule_datapoint_retry_timeout(uint8_t datapoint_id, uint16_t timeout_ms, std::function<void()> callback) = 0;
+  virtual void cancel_datapoint_retry_timeout(uint8_t datapoint_id) = 0;
 };
 
 }

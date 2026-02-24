@@ -20,7 +20,7 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
-   configure_datapoint_retry,
+    retry_config_struct_initializer,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -82,12 +82,12 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_UYAT_ID])
     options_map = config[CONF_OPTIONS]
 
-    configure_datapoint_retry(parent, config[CONF_DATAPOINT])
     var = await select.new_select(config,
                                   parent,
                                   cg.StructInitializer(UyatSelectConfig,
                                                        ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SELECT_DP_TYPES)),
                                                        ("optimistic", config[CONF_OPTIMISTIC]),
-                                                       ("mappings", list(options_map.keys()))),
+                                                       ("mappings", list(options_map.keys())),
+                                                       ("retry_config", retry_config_struct_initializer(config[CONF_DATAPOINT]))),
                                   options=list(options_map.values()))
     await cg.register_component(var, config)

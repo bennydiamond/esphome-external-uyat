@@ -145,7 +145,7 @@ void UyatFan::configure_speed(SpeedConfig&& config)
     DpNumber{
       [this](const float value){ this->on_speed_value(value); },
       std::move(config.matching_dp),
-      0.0f, 1.0f
+      0.0f, 1.0f, config.retry_config
     },
     config.min_value,
     config.max_value
@@ -157,7 +157,8 @@ void UyatFan::configure_switch(SwitchConfig&& config)
   this->dp_switch_.emplace(
     [this](const bool value){ this->on_switch_value(value); },
     std::move(config.matching_dp),
-    config.inverted
+    config.inverted,
+    config.retry_config
   );
 }
 
@@ -166,7 +167,8 @@ void UyatFan::configure_oscillation(OscillationConfig&& config)
   this->dp_oscillation_.emplace(
     [this](const bool value){ this->on_oscillation_value(value); },
     std::move(config.matching_dp),
-    config.inverted
+    config.inverted,
+    config.retry_config
   );
 }
 
@@ -175,7 +177,8 @@ void UyatFan::configure_direction(DirectionConfig&& config)
   this->dp_direction_.emplace(
     [this](const bool value){ this->on_direction_value(value); },
     std::move(config.matching_dp),
-    config.inverted
+    config.inverted,
+    config.retry_config
   );
 }
 

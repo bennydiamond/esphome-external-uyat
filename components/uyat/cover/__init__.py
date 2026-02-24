@@ -16,7 +16,6 @@ from .. import (
    DPTYPE_ENUM,
    DPTYPE_DETECT,
    matching_datapoint_from_config,
-   configure_datapoint_retry,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -182,7 +181,6 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_UYAT_ID])
 
     if control_config := config.get(CONF_CONTROL):
-        configure_datapoint_retry(parent, control_config)
         mapping = cg.StructInitializer(UyatCoverControlDpValueMapping,
                                        ("open_value", control_config.get(CONF_OPEN_VALUE)),
                                        ("close_value", control_config.get(CONF_CLOSE_VALUE)),
@@ -195,7 +193,6 @@ async def to_code(config):
         control_conf_struct = cg.RawExpression("{}")
 
     if direction_config := config.get(CONF_DIRECTION):
-        configure_datapoint_retry(parent, direction_config)
         direction_conf_struct = cg.StructInitializer(UyatCoverDirectionConfig,
                                                      ("matching_dp", await matching_datapoint_from_config(direction_config[CONF_DATAPOINT], DIRECTION_DP_TYPES)),
                                                      ("inverted", direction_config[CONF_INVERTED]))
@@ -204,12 +201,10 @@ async def to_code(config):
 
     position_config = config.get(CONF_POSITION)
     if CONF_POSITION_DATAPOINT in position_config:
-        configure_datapoint_retry(parent, position_config[CONF_POSITION_DATAPOINT])
         position_dp = await matching_datapoint_from_config(position_config[CONF_POSITION_DATAPOINT], POSITION_DP_TYPES)
     else:
         position_dp = cg.RawExpression("{}")
     if CONF_POSITION_REPORT_DATAPOINT in position_config:
-        configure_datapoint_retry(parent, position_config[CONF_POSITION_REPORT_DATAPOINT])
         position_report_dp = await matching_datapoint_from_config(position_config[CONF_POSITION_REPORT_DATAPOINT], POSITION_REPORT_DP_TYPES)
     else:
         position_report_dp = cg.RawExpression("{}")

@@ -12,6 +12,7 @@ struct ConfigSwitch
 {
    MatchingDatapoint switch_dp;
    bool inverted;
+   DatapointRetryConfig retry_config;
 };
 
 struct ConfigDimmer
@@ -21,6 +22,7 @@ struct ConfigDimmer
    uint32_t max_value;
    bool inverted;
    std::optional<MatchingDatapoint> min_value_dp;
+   DatapointRetryConfig retry_config;
 };
 
 struct ConfigWhiteTemperature
@@ -31,12 +33,14 @@ struct ConfigWhiteTemperature
    bool inverted;
    float cold_white_temperature;
    float warm_white_temperature;
+   DatapointRetryConfig retry_config;
 };
 
 struct ConfigColor
 {
    MatchingDatapoint color_dp;
    UyatColorType color_type;
+   DatapointRetryConfig retry_config;
 };
 
 }
