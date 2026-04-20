@@ -83,7 +83,7 @@ void Uyat::setup() {
 
       if (this->unhandled_datapoints_text_sensor_)
       {
-        const auto dp_ids = StringHelpers::format_hex_pretty(this->unhandled_datapoints_set_, ' ', false);
+        const auto dp_ids = StringHelpers::format_dec_pretty(this->unhandled_datapoints_set_, ' ');
         this->unhandled_datapoints_text_sensor_->publish_state(dp_ids.c_str());
       }
 

@@ -69,6 +69,32 @@ struct StringHelpers
       return StringHelpers::format_hex_pretty(data.data(), data.size(), separator, show_length);
    }
 
+   static StaticString format_dec_pretty(const uint8_t *data, size_t length, char separator = '.')
+   {
+      if (data == nullptr || length == 0)
+         return "";
+      StaticString ret;
+      const std::size_t entry_len = separator ? 4 : 3;
+      ret.reserve(length * entry_len);
+      for (std::size_t idx = 0; idx < length; ++idx)
+      {
+         if (idx > 0)
+         {
+            ret += StringHelpers::sprintf("%d ", data[idx]);
+         }
+         else
+         {
+            ret += StringHelpers::sprintf("%d", data[idx]);
+         }
+      }
+      return ret;
+   }
+
+   static StaticString format_dec_pretty(const std::vector<uint8_t> &data, char separator = '.')
+   {
+      return StringHelpers::format_dec_pretty(data.data(), data.size(), separator);
+   }
+
    static std::vector<uint8_t> base64_decode(const StaticString &encoded_string)
    {
       // Calculate maximum decoded size: every 4 base64 chars = 3 bytes
