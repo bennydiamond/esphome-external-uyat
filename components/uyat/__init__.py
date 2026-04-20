@@ -287,10 +287,14 @@ UYAT_FACTORY_RESET_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "uyat.factory_reset", UyatFactoryResetAction, UYAT_FACTORY_RESET_SCHEMA
+    "uyat.factory_reset",
+    UyatFactoryResetAction,
+    UYAT_FACTORY_RESET_SCHEMA,
+    synchronous=True
 )
 async def uyat_factory_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_reset_type(config[CONF_TYPE]))
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_TYPE], args, FactoryResetType)
+    cg.add(var.set_reset_type(template_))
     return var

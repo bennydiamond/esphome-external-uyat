@@ -9,6 +9,18 @@
 namespace esphome {
 namespace uyat {
 
+template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<Uyat> {
+ public:
+
+  void play(const Ts &...x) override {
+    this->parent_->trigger_factory_reset(this->reset_type_.value(x...));
+  }
+
+protected:
+  TEMPLATABLE_VALUE(FactoryResetType, reset_type);
+};
+
+
 class UyatDatapointUpdateTrigger : public Trigger<UyatDatapoint> {
  public:
   explicit UyatDatapointUpdateTrigger(Uyat *parent, uint8_t sensor_id) {

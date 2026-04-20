@@ -169,7 +169,6 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void process_command_queue_();
   void send_command_(const UyatCommand &command);
   void send_empty_command_(UyatCommandType command);
-  void set_datapoint_value_(const UyatDatapoint& dp, const bool force = false);
   void send_datapoint_command_(uint8_t datapoint_id, UyatDatapointType datapoint_type, std::vector<uint8_t> data);
   void set_status_pin_();
   void send_wifi_status_(const uint8_t status);
@@ -218,19 +217,6 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   std::vector<uint8_t> unknown_extended_commands_set_;
   std::vector<uint8_t> unhandled_datapoints_set_;
 #endif
-};
-
-template<typename... Ts> class FactoryResetAction : public Action<Ts...> {
- public:
-  FactoryResetAction(Uyat *uyat) : uyat_(uyat) {}
-  TEMPLATABLE_VALUE(FactoryResetType, reset_type);
-
-  void play(const Ts &...x) override {
-    this->uyat_->trigger_factory_reset(this->reset_type_.value(x...));
-  }
-
- protected:
-  Uyat *uyat_;
 };
 
 }  // namespace esphome::uyat
