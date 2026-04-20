@@ -109,7 +109,7 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
     if config[CONF_TYPE] == CONF_TYPE_VAP:
         config_struct = cg.StructInitializer(UyatSensorVAPConfig,
-                                            ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], SENSOR_DP_TYPES)),
+                                            ("matching_dp", await matching_datapoint_from_config(config[CONF_DATAPOINT], VAP_DP_TYPES)),
                                             ("value_type", VAP_VALUE_TYPES[config[CONF_VAP_VALUE_TYPE]]))
         var = cg.new_Pvariable(config[CONF_ID], await cg.get_variable(config[CONF_UYAT_ID]), config_struct)
 
