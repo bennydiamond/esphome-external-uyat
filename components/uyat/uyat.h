@@ -165,7 +165,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
  protected:
   void handle_input_buffer_();
   void handle_datapoints_(const StaticDeque::DequeView &buffer);
-  optional<UyatDatapoint> get_datapoint_(uint8_t datapoint_id);
+  UyatDatapoint* get_datapoint_(uint8_t datapoint_id);
   // returns number of bytes to remove from the beginning of rx buffer
   std::size_t validate_message_();
 
@@ -174,7 +174,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void process_command_queue_();
   void send_command_(const UyatCommand &command);
   void send_empty_command_(UyatCommandType command);
-  void send_datapoint_command_(uint8_t datapoint_id, UyatDatapointType datapoint_type, std::vector<uint8_t> data);
+  void send_datapoint_command_(const UyatDatapoint& datapoint, std::vector<uint8_t> data);
   void set_status_pin_();
   void send_wifi_status_(const uint8_t status);
   uint8_t get_wifi_rssi_();

@@ -750,12 +750,12 @@ void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
   this->send_datapoint_command_(dp, dp.value_to_payload());
 }
 
-optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
+UyatDatapoint* Uyat::get_datapoint_(uint8_t datapoint_id) {
   for (auto &datapoint : this->cached_datapoints_) {
     if (datapoint.number == datapoint_id)
-      return datapoint;
+      return &datapoint;
   }
-  return {};
+  return nullptr;
 }
 
 void Uyat::send_datapoint_command_(const UyatDatapoint& datapoint,
