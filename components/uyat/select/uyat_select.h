@@ -26,6 +26,7 @@ class UyatSelect : public select::Select, public Component {
     MatchingDatapoint matching_dp;
     bool optimistic;
     std::vector<uint32_t> mappings;
+    DatapointRetryConfig retry_config;
   };
 
   explicit UyatSelect(Uyat *parent, Config config);

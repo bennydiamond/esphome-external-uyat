@@ -15,6 +15,12 @@
 namespace esphome::uyat
 {
 
+struct DatapointRetryConfig {
+  bool enabled;
+  uint8_t count;
+  uint16_t timeout_ms;
+};
+
 // this is the actual value sent to the mcu
 enum class UyatDatapointType: uint8_t {
   RAW = 0x00,      // variable length
@@ -405,6 +411,10 @@ struct DatapointHandler
 
   virtual void register_datapoint_listener(const MatchingDatapoint& matching_dp, const OnDatapointCallback& callback) = 0;
   virtual void set_datapoint_value(const UyatDatapoint& dp, const bool forced = false) = 0;
+  
+  // Distributed retry support - allows DpSwitch/DpNumber/etc to manage their own retry timeouts
+  virtual void schedule_datapoint_retry_timeout(uint8_t datapoint_id, uint16_t timeout_ms, std::function<void()> callback) = 0;
+  virtual void cancel_datapoint_retry_timeout(uint8_t datapoint_id) = 0;
 };
 
 }

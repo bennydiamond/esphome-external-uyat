@@ -17,6 +17,11 @@ static const uint8_t NET_STATUS_CLOUD_CONNECTED = 0x04;
 static const uint8_t FAKE_WIFI_RSSI = 100;
 static const uint64_t UART_MAX_POLL_TIME_MS = 50;
 
+// Helper to skip verbose logs for heartbeat commands (reduce noise)
+static inline bool is_heartbeat_cmd_(uint8_t cmd) {
+  return cmd == static_cast<uint8_t>(UyatCommandType::HEARTBEAT);
+}
+
 #ifdef UYAT_DIAGNOSTICS_ENABLED
 static void add_unique_to_vector(std::vector<uint8_t> &vec, const uint8_t value) {
   if (std::find(vec.begin(), vec.end(), value) == vec.end()) {
@@ -261,10 +266,10 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
     if (valid) {
       this->product_ = StaticString(view.cbegin(), view.cend());
 #ifdef UYAT_DIAGNOSTICS_ENABLED
-      if (this->product_text_sensor_)
-      {
-        this->product_text_sensor_->publish_state(this->product_.c_str());
-      }
+          if (this->product_text_sensor_)
+          {
+            this->product_text_sensor_->publish_state(this->product_);
+          }
 #endif
     } else {
       this->product_ = R"({"p":"INVALID"})";
@@ -362,6 +367,7 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
   case UyatCommandType::WIFI_RESET:
   {
     ESP_LOGI(TAG, "WIFI_RESET");
+    this->reset_datapoint_tracking_();
     this->init_state_ = UyatInitState::INIT_PRODUCT;
     this->send_empty_command_(UyatCommandType::WIFI_RESET);
     this->schedule_heartbeat_(true);
@@ -383,6 +389,7 @@ void Uyat::handle_command_(uint8_t command, uint8_t version,
       update_pairing_mode_sensor_();
 #endif
 
+      this->reset_datapoint_tracking_();
       this->init_state_ = UyatInitState::INIT_PRODUCT;
       this->send_empty_command_(UyatCommandType::WIFI_SELECT);
       this->schedule_heartbeat_(true);
@@ -561,7 +568,7 @@ void Uyat::handle_datapoints_(const StaticDeque::DequeView &buffer) {
         bool found = false;
         for (auto &other : this->cached_datapoints_) {
           if (other.matches(datapoint.value())) {
-            other = datapoint.value();
+            other.value = datapoint->value;
             found = true;
           }
         }
@@ -618,10 +625,13 @@ void Uyat::send_raw_command_(UyatCommand command) {
     break;
   }
 
-  ESP_LOGV(TAG, "Sending Uyat: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u",
-           static_cast<uint8_t>(command.cmd), version,
-           StringHelpers::format_hex_pretty(command.payload).c_str(),
-           static_cast<uint8_t>(this->init_state_));
+  // Skip logging for heartbeat to reduce noise
+  if (!is_heartbeat_cmd_(static_cast<uint8_t>(command.cmd))) {
+    ESP_LOGV(TAG, "Sending Uyat: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u",
+             static_cast<uint8_t>(command.cmd), version,
+             StringHelpers::format_hex_pretty(command.payload).c_str(),
+             static_cast<uint8_t>(this->init_state_));
+  }
 
   this->write_array(
       {0x55, 0xAA, version, (uint8_t)command.cmd, len_hi, len_lo});
@@ -721,8 +731,9 @@ void Uyat::send_local_time_() {
 
 void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
   ESP_LOGD(TAG, "Setting %s", dp.to_string().c_str());
-  auto configured_datapoint = this->get_datapoint_(dp.number);
-  if (configured_datapoint.has_value()) {
+  auto *configured_datapoint = this->get_datapoint_(dp.number);
+  
+  if (configured_datapoint != nullptr) {
     if (configured_datapoint->get_type() != dp.get_type())
     {
       ESP_LOGE(TAG, "Datapoint %u previously seen as %s setting as %s",
@@ -732,9 +743,11 @@ void Uyat::set_datapoint_value(const UyatDatapoint& dp, const bool forced ) {
       ESP_LOGV(TAG, "Not sending unchanged value");
       return;
     }
+	// Update the cached datapoint value BEFORE sending (so unchanged check works next time)
+	configured_datapoint->value = dp.value;
   }
 
-  this->send_datapoint_command_(dp.number, dp.get_type(), dp.value_to_payload());
+  this->send_datapoint_command_(dp, dp.value_to_payload());
 }
 
 optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
@@ -745,18 +758,20 @@ optional<UyatDatapoint> Uyat::get_datapoint_(uint8_t datapoint_id) {
   return {};
 }
 
-void Uyat::send_datapoint_command_(uint8_t datapoint_id,
-                                   UyatDatapointType datapoint_type,
+void Uyat::send_datapoint_command_(const UyatDatapoint& datapoint,
                                    std::vector<uint8_t> data) {
   std::vector<uint8_t> buffer;
-  buffer.push_back(datapoint_id);
-  buffer.push_back(static_cast<uint8_t>(datapoint_type));
+  buffer.push_back(datapoint.number);
+  buffer.push_back(static_cast<uint8_t>(datapoint.get_type()));
   buffer.push_back(data.size() >> 8);
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
 
-  this->send_command_(UyatCommand{.cmd = UyatCommandType::DATAPOINT_DELIVER,
-                                  .payload = buffer});
+  UyatCommand command{
+    .cmd = UyatCommandType::DATAPOINT_DELIVER,
+    .payload = std::move(buffer)
+  };
+  this->send_command_(command);
 }
 
 void Uyat::register_datapoint_listener(const uint8_t datapoint_id,
@@ -791,6 +806,26 @@ void Uyat::register_datapoint_listener(const MatchingDatapoint& matching_dp,
 }
 
 UyatInitState Uyat::get_init_state() { return this->init_state_; }
+
+void Uyat::schedule_datapoint_retry_timeout(uint8_t datapoint_id, uint16_t timeout_ms, std::function<void()> callback) {
+  // Use datapoint number as timer ID (offset to avoid conflicts with other timers)
+  uint32_t timer_id = 0x20000000 + datapoint_id;
+  
+  ESP_LOGV(TAG, "[DP%u] Scheduling retry timeout: %ums", datapoint_id, timeout_ms);
+  
+  // Cancel any existing timeout for this datapoint first
+  this->cancel_timeout(timer_id);
+  
+  // Schedule new timeout
+  this->set_timeout(timer_id, timeout_ms, std::move(callback));
+}
+
+void Uyat::cancel_datapoint_retry_timeout(uint8_t datapoint_id) {
+  uint32_t timer_id = 0x20000000 + datapoint_id;
+  
+  ESP_LOGV(TAG, "[DP%u] Canceling retry timeout", datapoint_id);
+  this->cancel_timeout(timer_id);
+}
 
 void Uyat::report_wifi_connected_or_retry_(const uint32_t delay_ms)
 {
@@ -908,6 +943,10 @@ StaticString Uyat::process_get_module_information_(const StaticDeque::DequeView 
   module_info_str.push_back('}');
 
   return module_info_str;
+}
+
+void Uyat::reset_datapoint_tracking_() {
+  // With distributed retry logic, no pending tracking needed
 }
 
 void Uyat::schedule_heartbeat_(const bool initial)

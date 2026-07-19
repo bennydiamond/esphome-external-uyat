@@ -21,6 +21,7 @@ class UyatSwitch : public switch_::Switch, public Component {
   struct Config
   {
     MatchingDatapoint matching_dp;
+    DatapointRetryConfig retry_config;
   };
 
   explicit UyatSwitch(Uyat *parent, Config config);

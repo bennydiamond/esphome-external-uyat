@@ -35,6 +35,10 @@ CONF_UNHANDLED_DATAPOINTS = "unhandled_datapoints"
 CONF_PAIRING_MODE = "pairing_mode"
 CONF_PRODUCT = "product"
 CONF_UYAT_ID = "uyat_id"
+CONF_RETRIES = "retries"
+CONF_ENABLED = "enabled"
+CONF_COUNT = "count"
+CONF_TIMEOUT = "timeout"
 
 uyat_ns = cg.esphome_ns.namespace("uyat")
 UyatDatapointType = uyat_ns.enum("UyatDatapointType", is_class=True)
@@ -45,6 +49,7 @@ UyatDatapoint = uyat_ns.class_("UyatDatapoint")
 FactoryResetType = uyat_ns.enum("FactoryResetType")
 Uyat = uyat_ns.class_("Uyat", cg.Component, uart.UARTDevice)
 MatchingDatapoint = uyat_ns.class_("MatchingDatapoint")
+DatapointRetryConfig = uyat_ns.struct("DatapointRetryConfig")
 UyatFactoryResetAction = uyat_ns.class_("FactoryResetAction", automation.Action)
 
 FACTORY_RESET_TYPES = {
@@ -144,6 +149,42 @@ DATAPOINT_TRIGGERS = {
         automation.Trigger.template(CPP_DATAPOINT_TYPES[DPTYPE_BITMAP]),
     ),
 }
+
+
+# Retry configuration schema - shared across all components
+def _validate_retry_timeout(value):
+    if value.total_milliseconds < 30 or value.total_milliseconds > 10000:
+        raise cv.Invalid("Timeout must be 30ms..10000ms")
+    return value
+
+RETRIES_SCHEMA = cv.Schema({
+    cv.Required(CONF_ENABLED): cv.boolean,
+    cv.Optional(CONF_COUNT, default=3): cv.int_range(min=1, max=10),
+    cv.Optional(CONF_TIMEOUT, default="300ms"): cv.All(
+        cv.positive_time_period,
+        _validate_retry_timeout
+    ),
+})
+
+
+def retry_config_struct_initializer(dp_config):
+    """Create a DatapointRetryConfig struct initializer from datapoint config."""
+    if isinstance(dp_config, dict) and CONF_RETRIES in dp_config:
+        retries = dp_config[CONF_RETRIES]
+        return cg.StructInitializer(
+            DatapointRetryConfig,
+            ("enabled", retries[CONF_ENABLED]),
+            ("count", retries[CONF_COUNT]),
+            ("timeout_ms", int(retries[CONF_TIMEOUT].total_milliseconds)),
+        )
+    else:
+        # Default: retry disabled
+        return cg.StructInitializer(
+            DatapointRetryConfig,
+            ("enabled", False),
+            ("count", 0),
+            ("timeout_ms", 0),
+        )
 
 
 def assign_declare_id(value):

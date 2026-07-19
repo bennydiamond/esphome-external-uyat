@@ -20,13 +20,15 @@ from .. import (
    CONF_UYAT_ID,
    CONF_DATAPOINT,
    CONF_DATAPOINT_TYPE,
+   CONF_RETRIES,
+   RETRIES_SCHEMA,
    Uyat,
    uyat_ns,
    DPTYPE_BOOL,
    DPTYPE_UINT,
    DPTYPE_ENUM,
    DPTYPE_DETECT,
-   matching_datapoint_from_config
+   matching_datapoint_from_config,
 )
 
 DEPENDENCIES = ["uyat"]
@@ -185,6 +187,7 @@ SWITCH_CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=SWITCH_DP_TYPES["default"]): cv.one_of(
                         *SWITCH_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -209,6 +212,7 @@ ACTIVE_STATE_DATAPOINT_CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=ACTIVE_STATE_DP_TYPES["default"]): cv.one_of(
                         *ACTIVE_STATE_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_HEATING_VALUE): cv.uint8_t,
@@ -228,6 +232,7 @@ PRESETS_CONFIG_SCHEMA = cv.All(cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=BOOST_DP_TYPES["default"]): cv.one_of(
                         *BOOST_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 }),
             ),
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -241,6 +246,7 @@ PRESETS_CONFIG_SCHEMA = cv.All(cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=ECO_DP_TYPES["default"]): cv.one_of(
                         *ECO_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 }),
             ),
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -254,6 +260,7 @@ PRESETS_CONFIG_SCHEMA = cv.All(cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=SLEEP_DP_TYPES["default"]): cv.one_of(
                         *SLEEP_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 }),
             ),
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -272,6 +279,7 @@ FAN_MODE_CONFIG_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=FAN_SPEED_DP_TYPES["default"]): cv.one_of(
                         *FAN_SPEED_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_AUTO_VALUE): cv.uint8_t,
@@ -291,6 +299,7 @@ ANY_SWING_MODE_SCHEMA = cv.Schema(
                     cv.Optional(CONF_DATAPOINT_TYPE, default=SWING_DP_TYPES["default"]): cv.one_of(
                         *SWING_DP_TYPES["allowed"], lower=True
                     ),
+                    cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
                 })
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
@@ -316,6 +325,7 @@ ANY_TEMPERATURE_CONFIG_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DATAPOINT_TYPE, default=TEMPERATURE_DP_TYPES["default"]): cv.one_of(
                     *TEMPERATURE_DP_TYPES["allowed"], lower=True
                 ),
+                cv.Optional(CONF_RETRIES): RETRIES_SCHEMA,
             })
         ),
         cv.Optional(CONF_MULTIPLIER, default=1.0): cv.positive_float,
@@ -354,6 +364,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 async def to_code(config):
+    parent = await cg.get_variable(config[CONF_UYAT_ID])
+
     if switch_config := config.get(CONF_SWITCH):
         switch_conf_struct = cg.StructInitializer(UyatClimateSwitchConfig,
             ("matching_dp", await matching_datapoint_from_config(switch_config[CONF_DATAPOINT], SWITCH_DP_TYPES)),
@@ -526,5 +538,5 @@ async def to_code(config):
                                         ("swings_config", swings_conf_struct),
                                         ("fan_config", fan_config_struct))
 
-    var = await climate.new_climate(config, await cg.get_variable(config[CONF_UYAT_ID]), final_config)
+    var = await climate.new_climate(config, parent, final_config)
     await cg.register_component(var, config)

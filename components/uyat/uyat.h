@@ -108,6 +108,11 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   void register_datapoint_listener(const uint8_t datapoint_id, const UyatDatapointType type, const OnDatapointCallback &func);
   void register_datapoint_listener(const MatchingDatapoint& matching_dp, const OnDatapointCallback &func) override;
   void set_datapoint_value(const UyatDatapoint& value, const bool forced = false) override;
+  
+  // Distributed retry support - allows DpSwitch/DpNumber/etc to manage their own retry timeouts
+  void schedule_datapoint_retry_timeout(uint8_t datapoint_id, uint16_t timeout_ms, std::function<void()> callback) override;
+  void cancel_datapoint_retry_timeout(uint8_t datapoint_id) override;
+  
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void send_generic_command(const UyatCommand &command) { send_command_(command); }
   UyatInitState get_init_state();
@@ -179,6 +184,7 @@ class Uyat : public Component, public uart::UARTDevice, public DatapointHandler 
   StaticString process_get_module_information_(const StaticDeque::DequeView &view);
   void schedule_heartbeat_(const bool initial);
   void stop_heartbeats_();
+  void reset_datapoint_tracking_();  // Cancel all pending datapoint retries and clear state
 
 #ifdef UYAT_DIAGNOSTICS_ENABLED
   void update_pairing_mode_sensor_();

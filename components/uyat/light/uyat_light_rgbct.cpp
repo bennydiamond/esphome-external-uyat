@@ -10,18 +10,19 @@ UyatLightRGBCT::UyatLightRGBCT(Uyat *parent, Config config):
 parent_(*parent),
 dp_switch_{[this](const bool value){ this->on_switch_value(value);},
            std::move(config.switch_config.switch_dp),
-           config.switch_config.inverted},
+           config.switch_config.inverted,
+           config.switch_config.retry_config},
 dp_dimmer_{[this](const float brightness_percent){ this->on_dimmer_value(brightness_percent); },
             std::move(config.dimmer_config.dimmer_dp),
             config.dimmer_config.min_value, config.dimmer_config.max_value,
-            config.dimmer_config.inverted},
+             config.dimmer_config.inverted, config.dimmer_config.retry_config},
 dp_color_{[this](const DpColor::Value& value){ this->on_color_value(value);},
           std::move(config.color_config.color_dp),
-          config.color_config.color_type},
+          config.color_config.color_type, config.color_config.retry_config},
 dp_white_temperature_{[this](const float brightness_percent){ this->on_white_temperature_value(brightness_percent); },
                         std::move(config.wt_config.white_temperature_dp),
                         config.wt_config.min_value, config.wt_config.max_value,
-                        config.wt_config.inverted},
+                        config.wt_config.inverted, config.wt_config.retry_config},
 cold_white_temperature_(config.wt_config.cold_white_temperature),
 warm_white_temperature_(config.wt_config.warm_white_temperature),
 color_interlock_(config.color_interlock)
@@ -31,7 +32,7 @@ color_interlock_(config.color_interlock)
     this->dimmer_min_value_.emplace(
       [](auto){}, // ignore (write only)
       std::move(*config.dimmer_config.min_value_dp),
-      0.0f, 1.0f
+      0.0f, 1.0f, DatapointRetryConfig{}
     );
   }
 }

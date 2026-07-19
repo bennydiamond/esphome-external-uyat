@@ -10,10 +10,11 @@ UyatLightRGB::UyatLightRGB(Uyat *parent, Config config):
 parent_(*parent),
 dp_switch_{[this](const bool value){ this->on_switch_value(value);},
            std::move(config.switch_config.switch_dp),
-           config.switch_config.inverted},
+           config.switch_config.inverted,
+           config.switch_config.retry_config},
 dp_color_{[this](const DpColor::Value& value){ this->on_color_value(value);},
              std::move(config.color_config.color_dp),
-             config.color_config.color_type}
+             config.color_config.color_type, config.color_config.retry_config}
 {}
 
 void UyatLightRGB::setup() {

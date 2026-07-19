@@ -11,7 +11,7 @@ optimistic_(config.optimistic),
 mappings_(std::move(config.mappings)),
 dp_number_([this](const float value){this->on_value(value);},
            std::move(config.matching_dp),
-           0, 1.0f)
+           0, 1.0f, config.retry_config)
 {}
 
 void UyatSelect::setup() {

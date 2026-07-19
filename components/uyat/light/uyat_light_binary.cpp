@@ -10,7 +10,8 @@ UyatLightBinary::UyatLightBinary(Uyat *parent, Config config):
 parent_(*parent),
 dp_switch_{[this](const bool value){ this->on_switch_value(value);},
            std::move(config.switch_config.switch_dp),
-           config.switch_config.inverted}
+           config.switch_config.inverted,
+           config.switch_config.retry_config}
 {}
 
 void UyatLightBinary::setup() {
